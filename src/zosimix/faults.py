@@ -87,7 +87,8 @@ def _polarity_candidates(stems: dict[str, np.ndarray], sr: int, audible: list[st
     nothing audible), or the clean mix may already be "out of phase" (then the correct
     answer is ambiguous). So a mic qualifies only if flipping it makes the summed drum bus
     lose at least POLARITY_MIN_LOSS_DB of low end, where polarity problems are heard (D41).
-    Overheads always stay as the reference.
+    Overheads are candidates too: a two-mic overhead pair is the classic real-world case
+    (D42), and the loss test alone decides.
     """
     drums = [n for n in audible if family_of(n) == "drums"]
     if len(drums) < 2:
@@ -100,8 +101,6 @@ def _polarity_candidates(stems: dict[str, np.ndarray], sr: int, audible: list[st
     clean_rms = np.sqrt(np.mean(bus ** 2))
     out = []
     for n in drums:
-        if "overhead" in n.lower():
-            continue
         flipped_rms = np.sqrt(np.mean((bus - 2 * low[n][:length]) ** 2))
         if audio.gain_to_db(clean_rms / max(flipped_rms, 1e-20)) >= POLARITY_MIN_LOSS_DB:
             out.append(n)

@@ -33,6 +33,8 @@ FAMILIES = [
     ("guitar", "guitars"),
     ("keys", "keys"), ("piano", "keys"), ("synth", "keys"), ("organ", "keys"),
     ("violin", "strings"), ("viola", "strings"), ("cello", "strings"), ("strings", "strings"),
+    ("bowed", "strings"), ("other_keys", "keys"), ("other_fx", "fx"),   # MoisesDB stem names
+    ("percussion", "percussion"), ("wind", "winds"),
 ]
 
 

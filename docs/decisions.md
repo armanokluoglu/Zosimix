@@ -189,3 +189,14 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Finding:* in AlbumDB song 01 the kick mic is essentially uncorrelated with the overheads (|r| ≈ 0.01), and the snare is already anti-correlated in the clean mix (r ≈ −0.16 at a 4.4 ms lag). The stems are processed, so flipping one mic is either inaudible or has no clear correct answer.
 - *Rule:* a non-overhead drum mic qualifies only if flipping it lowers the low-passed (< 500 Hz) drum-bus RMS by **≥ 1 dB**. With that rule, neither AlbumDB song has any eligible mic, so polarity tasks will come from MoisesDB's raw multi-mic drums.
 - *Implication for day 5:* plain broadband correlation is too weak to detect polarity. The perception tool needs low-passed, lag-searched correlation, or a bus-energy-on-flip test like this one.
+
+**D42 — MoisesDB picks, and polarity faults sourced from the only songs that support them** · 2026-11-24 · accepted (owner chose option A)
+- *Finding:* MoisesDB records each drum part with a single mic, with very little bleed. Flipping any one mic changes the drum bus by under 0.6 dB in 10 songs across 7 genres. Across all 240 songs there are only 11 multi-file drum or bass parts, and all but one are layered synths.
+  - The exception is Firefly "Big Life", which has two overhead mics. Flipping either one costs 3.1 dB below 250 Hz in the full drum bus.
+  - After the overhead exception was removed, Juniper "Triangles" also qualifies: its overhead blends with the close mics.
+- *Chosen:* keep polarity in v1, with tasks drawn only from Big Life and Triangles. Rejected alternative: move polarity to v2. The README will explain why polarity faults are rare.
+- *Songs (5):* Firefly – Big Life (pop), Holy Magick – Stolen Car (electronic), Centenary – By Now (reggae), The Followers – Kryptonite (rock), Juniper – Triangles (world/folk). All were picked from the 240 using the survey score: full drum kit, lead vocal, 8–14 stems, 2.5–5 minutes. With AlbumDB that makes 7 songs, about 6 GB as 32-bit float.
+- *Implementation:*
+  - The importer keeps multiple files of the same part as separate stems (`_1`, `_2`), because summing them destroys exactly the mic pairs where polarity problems live.
+  - The polarity rule no longer excludes overheads. The ≥ 1 dB low-end-loss test (D41) is the only criterion.
+  - Track-type names are cut to 3 words, since they appear in FL's mixer and in every tool call.

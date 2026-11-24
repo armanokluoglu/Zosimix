@@ -57,7 +57,7 @@ def test_stem_sum_check_is_exact_when_reference_is_the_sum(songs_root):
 
 def test_eligibility_matches_what_each_fault_needs(songs_root):
     stems, sr = _song(songs_root).load_stems()
-    assert faults.eligible_stems("polarity", stems, sr) == ["drums_kick"]       # overheads are the reference
+    assert sorted(faults.eligible_stems("polarity", stems, sr)) == ["drums_kick", "drums_overheads"]   # correlated pair
     assert "guitar_wide" not in faults.eligible_stems("pan", stems, sr)         # already wide, can't be "un-centred"
     assert "vox_lead" in faults.eligible_stems("pan", stems, sr)
     assert faults.eligible_stems("control", stems, sr) == []
@@ -140,3 +140,17 @@ def test_clean_stems_are_scaled_to_headroom_without_changing_balance(songs_root,
     ratio = audio.rms(clean["bass"]) / audio.rms(clean["vox_lead"])
     assert ratio == pytest.approx(audio.rms(hot["bass"]) / audio.rms(hot["vox_lead"]))   # balance kept
     assert gain_db < 0
+
+
+def test_polarity_needs_an_audible_low_end_loss():
+    rng = np.random.default_rng(1)
+    t = np.arange(SR * 2) / SR
+    kick = (0.3 * np.sin(2 * np.pi * 60 * t))[:, None]
+    stems = {
+        "drums_kick": kick,
+        "drums_snare": 0.3 * rng.standard_normal((SR * 2, 1)),   # unrelated to the kick
+    }
+    # Flipping either changes nothing audible: the two mics share no sound.
+    assert faults.eligible_stems("polarity", stems, SR) == []
+    stems["drums_kick_out"] = 0.8 * kick                           # a second mic on the same drum
+    assert "drums_kick_out" in faults.eligible_stems("polarity", stems, SR)
