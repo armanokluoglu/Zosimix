@@ -22,6 +22,16 @@ Goal: prove that FL Studio 20.9.2 can be (a) rendered from the command line, una
 - **About 80 s per FL render (mostly startup).** That is too slow to run on every `commit_changes`. Proposal: in FL mode, the verification hook renders the current mix state with the offline engine (milliseconds), and FL renders only once at the end for grading. This relies on the parity check (DESIGN §3.3) to keep the offline render honest. → log as a decision once confirmed.
 - **Open question:** can a command-line render run while the agent's FL session is open (FL is single-instance by default)? The answer decides between "save → close → render" and a second instance.
 
+## Bridge test setup (one time, by hand)
+The bridge script is already copied to `Documents\Image-Line\FL Studio\Settings\Hardware\Zosimix\device_Zosimix.py`. The source lives in `fl_bridge/`.
+1. Install **loopMIDI** from tobias-erichsen.de. Create two ports named exactly **`Zosimix In`** and **`Zosimix Out`**, and leave loopMIDI running.
+2. Open FL Studio, then go to **Options → MIDI settings**:
+   - **Input** list: select `Zosimix In`, tick **Enable**, set **Controller type** to **Zosimix Bridge (user)**, and set **Port** to **200**.
+   - **Output** list: select `Zosimix Out` and set its **Port** to **200** as well. This is how the script's replies find their way out.
+   - Optional: open **View → Script output**. It should print "Zosimix bridge ready, API version …".
+3. In an empty project, put **Fruity Parametric EQ 2** in the **first slot of mixer Insert 1**.
+4. Run `.venv/Scripts/python spike/bridge_test.py`. Everything it changes is restored at the end.
+
 ## How to resume
 1. Close FL Studio (save your work first).
 2. `py -3.11 spike/render_test.py "C:/Program Files/Image-Line/FL Studio 20/Data/Demo projects/Product demos/nucleon - Harmless Galactic.flp" --variant plain`
