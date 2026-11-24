@@ -10,6 +10,8 @@ dependencies = [
     "soundfile>=0.12",
     "pedalboard>=0.9",
     "remotezip>=0.12",
+    "pyloudnorm>=0.1",
+    "mcp>=2.3,<3",
 ]
 
 [project.optional-dependencies]

@@ -211,3 +211,18 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Known mismatch:* pedalboard's high-pass and low-pass filters are first order (6 dB/oct). PEQ2's slope is configurable. To be resolved during calibration. No v1 fault needs them.
 - *Speed, measured on real songs:* one fader or EQ move re-renders in 0.1–0.3 s, and 2 EQ bands on every track takes 2–3 s, against about 80 s for an FL render. That confirms D36: the offline preview is fast enough for every `commit_changes`.
 - *Guarantee, enforced by tests:* every fixable v1 fault can be undone in this engine (residual < −100 dB for gain, polarity and pan; < −40 dB for the EQ faults). If that ever breaks, the benchmark would contain unsolvable tasks.
+
+## Day 5: perception tools and MCP server
+
+**D44 — Resonance detection uses "persistent bumps"; resonance is expected to be the hardest fault** · 2026-11-24 · accepted
+- *Finding:* on real stems, a long-term spectrum's sharpest peaks are **sustained notes**: a piano's top five peaks were all notes, with Q ≈ 150–300, and the injected +8 dB resonance at 1475 Hz didn't appear. Smoothing at different widths found only 4–5 of 12 test cases, and some of those "hits" were natural resonances already present in the clean recording (an acoustic guitar body at about 960 Hz).
+- *Method chosen:* for each loud frame, take the height of a bump above its 1-octave neighbourhood (1/12-octave smoothing), then take the **median over the song**. Notes move and mostly cancel out; a fixed EQ boost doesn't. It found 7/12 cases, including all three severities on an AlbumDB lead vocal, with little false signal in clean vocals. It still can't tell a piano's or guitar's natural body resonance from an injected one.
+- *Stance:* the agent gets this as evidence, not proof, and can test a hypothesis by cutting and checking what moved. The detection-by-severity chart is expected to show resonance as the hardest fault. That is a finding to report, not something to hide.
+
+**D45 — Tool-layer design** · 2026-11-24 · accepted
+- *Verification lives in the MCP server, not in a Claude Code hook.* `commit_changes` applies pending changes, re-renders offline (D36), and returns the short difference report. `submit_diagnosis` refuses while anything is pending. This works in any MCP client and with either engine. The "hook on/off" ablation becomes `--no-verify`, where commit just returns "committed".
+- *Measurements always describe the committed mix.* `set_*` calls only change a pending state, so the agent cannot "hear" a change it hasn't committed.
+- *Tools:* overview, spectrum, compare, phase, tonal_balance, get_mix_state, set_gain, set_pan, set_polarity, set_width, set_eq_band, clear_eq_band, commit_changes, submit_diagnosis (14 in total). Every answer is plain text with a character budget enforced by tests (the overview of a 24-stem song is about 1.2k characters).
+- *Tonal target:* leave-one-out over the other 6 songs, written into the workspace as `tonal_target.json`. The mix-level target is tight (band spread 1.5–3.3 dB). Family targets are useful for vocals and too loose for drums and keys, because a kick and a hi-hat share the "drums" family.
+- *Speed:* stems are measured in parallel threads and cached per track setting. The first overview takes 4–6 s, repeats are instant, and a commit with its difference report takes about 1.7 s.
+- *Grading note for days 6–7:* when a polarity fault is on one mic of a two-mic pair (Big Life's overheads), flipping *either* mic restores coherence, and `phase` shows both at +2.6 dB. Detection grading must accept any stem whose flip restores the low end, not only the injected one.

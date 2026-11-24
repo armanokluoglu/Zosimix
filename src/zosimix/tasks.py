@@ -24,7 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zosimix import audio, faults
+from zosimix import audio, faults, targets
 from zosimix.songs import DATA_ROOT, Song, family_of, list_songs
 
 TASKS_DIR = Path(__file__).resolve().parents[2] / "tasks"
@@ -115,11 +115,12 @@ def load(set_name: str) -> list[TaskSpec]:
     return [TaskSpec(**t) for t in data["tasks"]]
 
 
-def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT) -> Path:
+def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT, target: dict | None = None) -> Path:
     """Build the agent's workspace for one task.
 
     Every stem is written the same way (stereo, 32-bit float) so file format, channel
-    count or name can't give away which stem was changed.
+    count or name can't give away which stem was changed. `target` is the leave-one-out
+    tonal target (targets.target_for): built from other songs only, so safe for the agent.
     """
     song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
     stems, sr, _ = song.load_clean_stems()
@@ -129,6 +130,8 @@ def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT) -> Pat
         out = faults.apply(fault, clean, sr) if name == fault.stem else clean
         audio.write(stems_dir / f"{name}.wav", audio.to_stereo(np.asarray(out)), sr)
     (dest / "brief.md").write_text(spec.brief + "\n", encoding="utf-8")
+    if target is not None:
+        (dest / "tonal_target.json").write_text(json.dumps(target, indent=1), encoding="utf-8")
     return dest
 
 
@@ -155,7 +158,7 @@ def main() -> None:
     else:
         set_name = args.task_id.rsplit("-", 1)[0]
         spec = next(s for s in load(set_name) if s.task_id == args.task_id)
-        print(f"workspace: {materialize(spec, args.dest)}")
+        print(f"workspace: {materialize(spec, args.dest, target=targets.target_for(spec.song_id))}")
 
 
 if __name__ == "__main__":

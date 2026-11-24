@@ -71,7 +71,7 @@ We use Claude Code (`claude -p --output-format stream-json`) and do not write ou
    - stereo separation
    - Parametric EQ 2 band settings (frequency, gain, Q, enable)
    - a `get_state` read-back
-3. **`commit_changes` plus the verification hook.** The agent batches several moves and then commits. The hook re-renders, re-analyzes, and injects only a **difference report of at most about 150 tokens**: the metrics that moved past a threshold. A **hard rule** applies: the final diagnosis report is refused unless the last change was committed and verified. In FL mode the re-render is a preview from the offline engine (an FL render takes about 80 s). FL renders once at the end, and only that render is graded (D36).
+3. **`commit_changes` plus verification** (implemented inside the MCP server's `commit_changes` tool, not as a Claude Code hook; see D45). The agent batches several moves and then commits. The hook re-renders, re-analyzes, and injects only a **difference report of at most about 150 tokens**: the metrics that moved past a threshold. A **hard rule** applies: the final diagnosis report is refused unless the last change was committed and verified. In FL mode the re-render is a preview from the offline engine (an FL render takes about 80 s). FL renders once at the end, and only that render is graded (D36).
 4. **Diagnosis skill.** This is the playbook: what to check, in what order, how to tell a fault from an artistic choice, and when to answer "unfixable".
 5. **Structured final output.** The agent ends with a JSON diagnosis: `[{stem, fault_type, confidence, actions}]`, or `unfixable`, or `no_fault`.
 
