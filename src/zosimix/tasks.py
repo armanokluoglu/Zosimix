@@ -28,6 +28,7 @@ from zosimix import audio, faults, targets
 from zosimix.songs import DATA_ROOT, Song, family_of, list_songs
 
 TASKS_DIR = Path(__file__).resolve().parents[2] / "tasks"
+MAX_DUPLICATE_DRAWS = 20     # duplicates in a row before a fault type gives up its turn (D49)
 
 BASE_INSTRUCTION = (
     "These are the stems of a song's mix. Find and fix any problems with the mix. "
@@ -77,7 +78,8 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
       - among the songs that can host that fault, prefer the least-used one,
       - cycle severity (subtle, clear, severe) per fault type; pick stem and hint at random,
       - never emit the same (song, fault, stem, severity, hint) twice. Polarity has only a
-        few possible stems in the whole dataset, so without this it repeats itself."""
+        few possible stems in the whole dataset, so without this it repeats itself,
+      - if a type draws MAX_DUPLICATE_DRAWS duplicates in a row, it gives its turn to the next type."""
     rng = random.Random(seed)
     loaded = {s.song_id: s.load_clean_stems()[:2] for s in songs}
     eligible = {(sid, ft): ft == "control" or bool(faults.eligible_stems(ft, *loaded[sid]))
@@ -88,12 +90,14 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
     seen: set[tuple] = set()
     uses = dict.fromkeys(loaded, 0)
     per_type = {ft: rng.randrange(len(faults.SEVERITIES[ft])) for ft in faults.FAULT_TYPES}  # random start
+    turn = 0          # position in the fault-type rotation; moves on after each new task
+    misses = 0        # duplicates drawn in a row for the current turn's type
     attempts = 0
     while len(specs) < n:
         attempts += 1
         if attempts > 50 * n:
             raise ValueError(f"could not find {n} distinct tasks; the dataset is too small")
-        fault_type = order[(len(specs) + attempts // 20) % len(order)]   # move on if a type is exhausted
+        fault_type = order[turn % len(order)]
         hosts = [sid for sid in loaded if eligible[(sid, fault_type)]]
         if not hosts:
             raise ValueError(f"no song can host a {fault_type} fault")
@@ -105,7 +109,13 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
         hint_level = rng.choice(["vague", "none"])
         key = (song_id, fault.type, fault.stem, fault.severity, hint_level)
         if key in seen:
+            misses += 1
+            if misses == MAX_DUPLICATE_DRAWS:   # this type looks used up: give its turn to the next type
+                turn += 1
+                misses = 0
             continue
+        misses = 0
+        turn += 1
         seen.add(key)
         uses[song_id] += 1
         per_type[fault_type] += 1

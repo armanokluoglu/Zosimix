@@ -255,3 +255,8 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Isolation:* workspaces live under `%LOCALAPPDATA%\zosimix\runs`, outside the repo. Every tool call is scanned for the repo path, task files and other runs. Workspace audio is deleted after grading; transcripts and answers are kept.
 - *Resilience:* every task is graded and appended to `results.jsonl` immediately. Re-running with `--run <id>` skips finished tasks. A usage-limit error stops the run without grading that task.
 - *Per-task timeout:* 20 minutes. The CLI has no max-turns flag.
+
+**D49 — Plainer fault-type rotation in task sampling (refines D47)** · 2026-11-24 · accepted
+- The rotation index was `(tasks so far + attempts // 20)`. It was meant to move past a fault type that keeps drawing duplicates, but `attempts` also counts successful draws, so the rotation slipped by one every 20 loop passes even when nothing went wrong. In the old `full` set, task 17 skipped `pan`.
+- *Now:* a `turn` counter advances after each new task. A type that draws `MAX_DUPLICATE_DRAWS` (20) duplicates in a row gives its turn to the next type. The overall `50 × n` attempt limit stays.
+- *Effect:* `smoke` regenerates byte-for-byte identical, so smoke run 1 stays comparable. `full` was regenerated with the same seed (42). No full run had used it yet. It still has 30 distinct tasks: types 5/5/4/4/4/4/4, 4–5 per song, every fixable type covering all three sizes, and hints at 14 vague / 16 none.
