@@ -1,0 +1,31 @@
+[project]
+name = "zosimix"
+version = "0.0.1"
+description = "An agent that repairs mixes it can't hear, and a benchmark that proves it."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "soundfile>=0.12",
+    "pedalboard>=0.9",
+    "remotezip>=0.12",
+]
+
+[project.optional-dependencies]
+fl = ["mido>=1.3", "python-rtmidi>=1.5"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zosimix"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"

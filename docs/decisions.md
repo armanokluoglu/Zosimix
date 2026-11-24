@@ -166,3 +166,14 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Problem:* an FL render costs about 80 s, mostly startup, which is too slow for every `commit_changes` (D24).
 - *Proposal:* the hook renders the current mix state with the offline engine, which takes milliseconds. FL renders once at the end, and only that render is graded.
 - *Depends on:* the parity check (DESIGN §3.3) keeping the offline preview faithful to FL. If parity turns out poor, fall back to FL renders at the end plus a smaller number of mid-run FL renders.
+
+## Day 3: data, faults, tasks
+
+**D37 — Start with AlbumDB, fetched song by song; MoisesDB once access is granted** · 2026-11-24 · accepted
+- *Facts:* AlbumDB's Zenodo zips support HTTP range requests, so single songs can be pulled out of the 5 GB stems archive (`remotezip`). MoisesDB downloads sit behind a sign-up form on music.ai, which the owner has to fill in.
+- *Consequence:* AlbumDB's reference is a mastered stereo file, so it cannot null against the stem sum. Its check is "plausible" (gain-matched correlation > 0.9), not "exact". The ground truth is still the plain stem sum (D16).
+
+**D38 — Workspaces are short-lived and uniform** · 2026-11-24 · accepted
+- Each run's workspace is built just before the run and deleted afterwards. A full copy of a song is 0.6–2 GB, so 30 tasks cannot all sit on disk at once.
+- Every stem in a workspace is written as stereo, 32-bit float, with its original name. Format, channel count or file name must not give away which stem was changed. Float format also stops a +10 dB gain fault from accidentally turning into clipping.
+- Task specs, which contain the answers, are committed under `tasks/`. That makes it mandatory for the runner to put workspaces **outside the repo** and deny reads of it (D25).
