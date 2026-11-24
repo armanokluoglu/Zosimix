@@ -162,7 +162,7 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
   2. PEQ2 band type and filter order are stepped parameters. The engine maps them to named choices, not raw floats.
   3. The bridge protocol is plain text, not JSON, because FL's embedded Python lacks most of the standard library.
 
-**D36 — In FL mode, the verification hook previews through the offline engine** · 2026-11-24 · proposed
+**D36 — In FL mode, the verification hook previews through the offline engine** · 2026-11-24 · accepted (approved by owner 2026-11-24)
 - *Problem:* an FL render costs about 80 s, mostly startup, which is too slow for every `commit_changes` (D24).
 - *Proposal:* the hook renders the current mix state with the offline engine, which takes milliseconds. FL renders once at the end, and only that render is graded.
 - *Depends on:* the parity check (DESIGN §3.3) keeping the offline preview faithful to FL. If parity turns out poor, fall back to FL renders at the end plus a smaller number of mid-run FL renders.
