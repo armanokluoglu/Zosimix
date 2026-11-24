@@ -226,3 +226,32 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Tonal target:* leave-one-out over the other 6 songs, written into the workspace as `tonal_target.json`. The mix-level target is tight (band spread 1.5–3.3 dB). Family targets are useful for vocals and too loose for drums and keys, because a kick and a hi-hat share the "drums" family.
 - *Speed:* stems are measured in parallel threads and cached per track setting. The first overview takes 4–6 s, repeats are instant, and a commit with its difference report takes about 1.7 s.
 - *Grading note for days 6–7:* when a polarity fault is on one mic of a two-mic pair (Big Life's overheads), flipping *either* mic restores coherence, and `phase` shows both at +2.6 dB. Detection grading must accept any stem whose flip restores the low end, not only the injected one.
+
+## Days 6–7: graders and runner
+
+**D46 — Grading rules** · 2026-11-24 · accepted (owner may revisit the level rule)
+- *Detection:* the verdict must match the fault class: "fixed" for fixable faults, "unfixable" for clipping, "no_fault" for controls. At least one finding must name the right fault type on an *acceptable* stem. Normally that is only the faulty stem. For polarity it is any drum stem whose flip restores ≥ 1 dB of low end, so with a two-mic pair either mic counts (D45).
+- *Repair:* the fraction of the fault-specific error removed, `1 − after/before`, clamped to [−1, 1]. It must be ≥ **0.7** to pass. The error measure depends on the fault:
+  - gain: level error in dB
+  - pan: L/R balance error in dB
+  - resonance and mud: band-shape error, meaning the band's share of the stem's energy, over ±1/3 octave for resonance and ±1 octave for mud
+  - polarity: low-end error of the drum bus
+- *Overall level (the open question from D43):* repair is measured **without penalizing overall level**, except for gain faults, where level *is* the fault. Panning a vocal back without raising its fader still counts as fixing the pan. The level change is reported (`mix_level_change_db`) but does not fail a task.
+- *Collateral:* all stems that were clean, summed, must stay within **−30 dB** of their original (about 3%). That catches "fixing" a loud vocal by turning everything else up. The grader also lists every other stem that was touched.
+- *Clipping and controls:* pass only with the right verdict **and** a final mix within −30 dB of the mix as handed over. Any change counts against the agent: a fake fix, or a false alarm acted on.
+- *No submission, or an unusable mix state:* the task fails. An invalid mix state is treated as "no changes", and the reason is recorded.
+
+**D47 — Task sampling** · 2026-11-24 · accepted
+- Cycle through fault types. Among the songs that can host a fault, prefer the least-used one. Cycle severity through the three sizes per fault type, starting at a random point. Never emit the same (song, fault, stem, severity, hint) twice.
+- *Why:* the first draw repeated the same Big Life polarity task 4 times and put 8 of 30 tasks on one song. Polarity has only 3 possible stems in the whole dataset.
+- *Result:* `full` has 30 distinct tasks, 4–5 per song, every fixable type spread across all three sizes, and 15/15 hint / no hint. `smoke` has 6 tasks covering 6 fault types; resonance is not in it.
+
+**D48 — Runner setup** · 2026-11-24 · accepted
+- *Command:* `claude -p` with `--permission-mode dontAsk`, `--setting-sources ""` (no personal settings, hooks or memory in evals), `--strict-mcp-config`, `--no-session-persistence` and stream-json output. Never `--bare`. A probe run confirmed that it uses the Pro login, runs Sonnet 5.5, and exposes only the 14 Zosimix tools.
+- *Configurations:*
+  - `zosimix`: `--tools ""` plus only `mcp__zosimix__*`
+  - `plain`: shell and file tools, plus a separate Python environment with numpy, scipy, soundfile, pyloudnorm and pedalboard, but **not** the Zosimix package. It gets the same action space, written as `output/mix_state.json`, so both configurations are graded identically.
+  - The third baseline (Claude Code + an existing FL MCP) needs FL running, so it waits for the FL engine (days 9–10).
+- *Isolation:* workspaces live under `%LOCALAPPDATA%\zosimix\runs`, outside the repo. Every tool call is scanned for the repo path, task files and other runs. Workspace audio is deleted after grading; transcripts and answers are kept.
+- *Resilience:* every task is graded and appended to `results.jsonl` immediately. Re-running with `--run <id>` skips finished tasks. A usage-limit error stops the run without grading that task.
+- *Per-task timeout:* 20 minutes. The CLI has no max-turns flag.
