@@ -177,3 +177,6 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - Each run's workspace is built just before the run and deleted afterwards. A full copy of a song is 0.6–2 GB, so 30 tasks cannot all sit on disk at once.
 - Every stem in a workspace is written as stereo, 32-bit float, with its original name. Format, channel count or file name must not give away which stem was changed. Float format also stops a +10 dB gain fault from accidentally turning into clipping.
 - Task specs, which contain the answers, are committed under `tasks/`. That makes it mandatory for the runner to put workspaces **outside the repo** and deny reads of it (D25).
+
+**D39 — Dataset citations are mandatory** · 2026-11-24 · accepted
+- Any public output that uses MoisesDB or AlbumDB data (README results, blog post, demo video, a paper) cites them using the BibTeX in `CITATIONS.md`. For MoisesDB that is Pereira et al. 2023, arXiv:2307.15913, as specified by the owner. Each song's `song.json` also carries its attribution.
