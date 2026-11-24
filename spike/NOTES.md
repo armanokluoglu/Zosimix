@@ -12,9 +12,15 @@ Goal: prove that FL Studio 20.9.2 can be (a) rendered from the command line, una
 ## Status
 | Step | State | Result |
 |---|---|---|
-| CLI render, variant `plain` (`/R /Ewav project.flp`) | blocked: FL was already open | — |
-| CLI render, variant `outdir` (`/O<folder>`) | pending | — |
-| SysEx bridge: set/read fader, polarity, PEQ2 | pending (needs loopMIDI) | — |
+| CLI render, variant `plain` (`/R /Ewav project.flp`) | **pass** | WAV written next to the project. FL **exited by itself**, with no dialogs and no watchdog kill. 80 s wall time for a 132.5 s song, including FL startup. Output: 24-bit, 44.1 kHz stereo. |
+| CLI render, variant `outdir` (`/O<folder>`) | **pass** | `/O` works on 20.9.2 (research had flagged it as uncertain). 82 s. |
+| Determinism (same project rendered twice) | **inconclusive** | Not bit-identical. There is no time offset (best lag is 0 samples, correlation 0.927), and the residual sits 8.4 dB below the signal. The demo song contains synths and effects with randomness, so this says nothing about a stems-only project. Retest on the bridge test project. |
+| SysEx bridge: set/read fader, polarity, PEQ2 | pending (needs loopMIDI and a test project) | — |
+
+## Findings that affect the design
+- **Rendering is GO.** Command-line rendering on 20.9.2 works unattended. The watchdog is kept as insurance.
+- **About 80 s per FL render (mostly startup).** That is too slow to run on every `commit_changes`. Proposal: in FL mode, the verification hook renders the current mix state with the offline engine (milliseconds), and FL renders only once at the end for grading. This relies on the parity check (DESIGN §3.3) to keep the offline render honest. → log as a decision once confirmed.
+- **Open question:** can a command-line render run while the agent's FL session is open (FL is single-instance by default)? The answer decides between "save → close → render" and a second instance.
 
 ## How to resume
 1. Close FL Studio (save your work first).
