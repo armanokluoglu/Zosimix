@@ -148,3 +148,21 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Alternatives:* Earshot (the working title), Nulltest, Fresh Ears, Mixbench, Zosimos.
 - *Why:* The name comes from Zosimos of Panopolis, an early alchemist who wrote about distillation and the equipment for purifying impure material. That is the project's idea: put a contaminated mix through careful apparatus and recover the clean version. Adding "mix" makes the audio connection obvious. On 2026-11-24 the name had 0 GitHub repositories and was free on PyPI. Plain "Zosimos" had 46 unrelated repositories.
 - *Consequence:* The name doesn't describe the project on its own, so the tagline must always appear next to it: *"Zosimix: an agent that repairs mixes it can't hear, and a benchmark that proves it."*
+
+## Spike results
+
+**D35 — FL go/no-go spike: GO on FL 20.9.2** · 2026-11-24 · accepted
+- *Evidence (spike/NOTES.md):*
+  - Command-line render (`/R /Ewav`, and `/O<folder>`) runs unattended, and FL exits by itself. A 132 s song takes about 80 s.
+  - The SysEx bridge over loopMIDI has a 1.7 ms round trip on scripting API version 20.
+  - Fader, pan and polarity work.
+  - All continuous Parametric EQ 2 parameters accept exact values.
+- *Implementation rules this establishes:*
+  1. Mixer writes take effect only after the script callback returns, so the FL engine confirms each write with a separate `get` and polls until it matches (1–2 ms in practice).
+  2. PEQ2 band type and filter order are stepped parameters. The engine maps them to named choices, not raw floats.
+  3. The bridge protocol is plain text, not JSON, because FL's embedded Python lacks most of the standard library.
+
+**D36 — In FL mode, the verification hook previews through the offline engine** · 2026-11-24 · proposed
+- *Problem:* an FL render costs about 80 s, mostly startup, which is too slow for every `commit_changes` (D24).
+- *Proposal:* the hook renders the current mix state with the offline engine, which takes milliseconds. FL renders once at the end, and only that render is graded.
+- *Depends on:* the parity check (DESIGN §3.3) keeping the offline preview faithful to FL. If parity turns out poor, fall back to FL renders at the end plus a smaller number of mid-run FL renders.

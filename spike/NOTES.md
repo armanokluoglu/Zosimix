@@ -15,7 +15,14 @@ Goal: prove that FL Studio 20.9.2 can be (a) rendered from the command line, una
 | CLI render, variant `plain` (`/R /Ewav project.flp`) | **pass** | WAV written next to the project. FL **exited by itself**, with no dialogs and no watchdog kill. 80 s wall time for a 132.5 s song, including FL startup. Output: 24-bit, 44.1 kHz stereo. |
 | CLI render, variant `outdir` (`/O<folder>`) | **pass** | `/O` works on 20.9.2 (research had flagged it as uncertain). 82 s. |
 | Determinism (same project rendered twice) | **inconclusive** | Not bit-identical. There is no time offset (best lag is 0 samples, correlation 0.927), and the residual sits 8.4 dB below the signal. The demo song contains synths and effects with randomness, so this says nothing about a stems-only project. Retest on the bridge test project. |
-| SysEx bridge: set/read fader, polarity, PEQ2 | pending (needs loopMIDI and a test project) | — |
+| SysEx bridge: set/read fader, polarity, PEQ2 | **pass (5/5)** | Scripting API version **20**, confirmed. Round trip over loopMIDI takes **1.7 ms median** (1.8 ms max, 30 calls). Fader, pan and polarity all work. **Mixer writes are applied after the script callback returns**, so the setter's own read-back is stale. A separate `get` sees the new value 1–2 ms later. Fruity Parametric EQ 2 exposes 36 parameters. All 22 continuous ones (level, frequency and width for 7 bands, plus main level) **take exact values**. The 14 stepped ones (band type, filter order) snap to the nearest step, which is the intended behaviour. None ignore writes, which contradicts an earlier community report about band widths. |
+
+## Verdict: GO
+FL Studio 20.9.2 can be driven from outside and rendered unattended. The FL engine stays in the plan as designed.
+
+**Moved to days 9–10 (FL engine):** both remaining checks need the hand-built stem templates.
+- Determinism of a **stems-only** project: render twice and run a null test.
+- Whether a command-line render can run while the agent's FL session is open.
 
 ## Findings that affect the design
 - **Rendering is GO.** Command-line rendering on 20.9.2 works unattended. The watchdog is kept as insurance.

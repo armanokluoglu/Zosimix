@@ -66,6 +66,18 @@ def close(a: float, b: float, tol: float = 0.01) -> bool:
     return abs(a - b) <= tol
 
 
+def settle(fl: Bridge, getter: str, track: int, target: float, timeout_s: float = 1.0) -> tuple[float, float]:
+    """Mixer writes are applied after the script callback returns, so the setter's own
+    read-back is stale. Poll the getter until it matches; return (value, ms until it did)."""
+    t0 = time.perf_counter()
+    while True:
+        value = float(fl.call(getter, track)[0])
+        elapsed = (time.perf_counter() - t0) * 1000
+        if close(value, target) or elapsed > timeout_s * 1000:
+            return value, elapsed
+        time.sleep(0.005)
+
+
 def main() -> int:
     fl = Bridge()
 
@@ -81,16 +93,22 @@ def main() -> int:
 
     # 2. Fader
     orig_vol = float(fl.call("get_volume", TRACK)[0])
-    got = float(fl.call("set_volume", TRACK, 0.5)[0])
+    immediate = float(fl.call("set_volume", TRACK, 0.5)[0])
+    got, ms = settle(fl, "get_volume", TRACK, 0.5)
     db = fl.call("get_volume_db", TRACK)[0]
-    check("fader write+readback", close(got, 0.5), f"set 0.5 -> read {got} ({db} dB)")
+    check("fader write+readback", close(got, 0.5),
+          f"set 0.5 -> immediate {immediate:.3f}, settled {got:.3f} after {ms:.0f} ms ({float(db):.2f} dB)")
     fl.call("set_volume", TRACK, orig_vol)
+    settle(fl, "get_volume", TRACK, orig_vol)
 
     # 3. Pan
     orig_pan = float(fl.call("get_pan", TRACK)[0])
-    got = float(fl.call("set_pan", TRACK, 0.3)[0])
-    check("pan write+readback", close(got, 0.3), f"set 0.3 -> read {got}")
+    immediate = float(fl.call("set_pan", TRACK, 0.3)[0])
+    got, ms = settle(fl, "get_pan", TRACK, 0.3)
+    check("pan write+readback", close(got, 0.3),
+          f"set 0.3 -> immediate {immediate:.3f}, settled {got:.3f} after {ms:.0f} ms")
     fl.call("set_pan", TRACK, orig_pan)
+    settle(fl, "get_pan", TRACK, orig_pan)
 
     # 4. Polarity
     orig_pol = fl.call("get_polarity", TRACK)[0]
@@ -114,19 +132,25 @@ def main() -> int:
         print()
 
         # Try writing every named parameter to a test value, read back, restore.
-        tested = ignored = 0
+        # Stepped parameters (band type, filter order) snap to the nearest step by design;
+        # that counts as honoured as long as the value actually moved off the original.
+        exact = snapped = ignored = 0
         for i, pname, value in params:
             if pname == "-":
                 continue
             target = 0.25 if value > 0.5 else 0.75
             got = float(fl.call("set_param", TRACK, SLOT, i, target)[0])
-            tested += 1
-            if not close(got, target, tol=0.02):
+            if close(got, target, tol=0.02):
+                exact += 1
+            elif not close(got, value, tol=1e-6):
+                snapped += 1
+                print(f"  stepped: #{i} {pname}: set {target} -> snapped to {got:.4f}")
+            else:
                 ignored += 1
-                print(f"  write not honoured: #{i} {pname}: set {target} -> read {got}")
+                print(f"  IGNORED: #{i} {pname}: set {target} -> still {got}")
             fl.call("set_param", TRACK, SLOT, i, value)
         check("plugin param write+readback", ignored == 0,
-              f"{tested - ignored}/{tested} named parameters honoured exact writes on '{name}'")
+              f"'{name}': {exact} exact, {snapped} stepped (snap to nearest step), {ignored} ignored")
 
     failed = [r for r in results if not r[1]]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
