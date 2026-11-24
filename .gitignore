@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Audio and datasets: never commit raw dataset audio (see DESIGN.md §4.1)
+data/
+*.wav
+*.flac
+*.mp3
+
+# Eval artifacts: ground truth and run workspaces stay local
+groundtruth/
+runs/
+workspaces/
+
+# FL Studio backups
+**/Backup/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json

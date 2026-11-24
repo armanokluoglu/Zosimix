@@ -1,0 +1,14 @@
+# Zosimix
+
+**An agent that repairs mixes it can't hear, and a benchmark that proves it.**
+
+Zosimix gives Claude a way to "hear" a multitrack mix through measurement tools. It lets Claude repair the problems it finds inside FL Studio, and it measures how well each repair worked. The test set is made of faults injected into professional multitrack recordings, so the correct answer is always known.
+
+> **Status:** early build. The design is complete. Day 1–2 spike in progress: can FL Studio be driven and rendered automatically?
+
+- [DESIGN.md](DESIGN.md): architecture, benchmark design, grading, and plan
+- [docs/decisions.md](docs/decisions.md): every design decision, with the alternatives considered and the reasons for the choice
+
+Designed by me and implemented by directing [Claude Code](https://claude.com/claude-code). The process, from design to decision log to review, is part of the project.
+
+The name comes from Zosimos of Panopolis, an early alchemist who wrote about distillation and the equipment used to purify impure material.
