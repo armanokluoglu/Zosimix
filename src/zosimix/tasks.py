@@ -72,26 +72,44 @@ class TaskSpec:
 
 
 def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSpec]:
-    """Stratified sampling: cycle through the fault types so each appears about equally,
-    and pick the song, severity, stem and hint level at random for each task."""
+    """Stratified sampling (D47):
+      - cycle through the fault types so each appears about equally,
+      - among the songs that can host that fault, prefer the least-used one,
+      - cycle severity (subtle, clear, severe) per fault type; pick stem and hint at random,
+      - never emit the same (song, fault, stem, severity, hint) twice. Polarity has only a
+        few possible stems in the whole dataset, so without this it repeats itself."""
     rng = random.Random(seed)
     loaded = {s.song_id: s.load_clean_stems()[:2] for s in songs}
+    eligible = {(sid, ft): ft == "control" or bool(faults.eligible_stems(ft, *loaded[sid]))
+                for sid in loaded for ft in faults.FAULT_TYPES}
     order = faults.FAULT_TYPES[:]
     rng.shuffle(order)
     specs: list[TaskSpec] = []
-    for i in range(n):
-        fault_type = order[i % len(order)]
-        song_ids = list(loaded)
-        rng.shuffle(song_ids)
-        for song_id in song_ids:                   # first song that can host this fault
-            stems, sr = loaded[song_id]
-            if fault_type == "control" or faults.eligible_stems(fault_type, stems, sr):
-                break
-        else:
+    seen: set[tuple] = set()
+    uses = dict.fromkeys(loaded, 0)
+    per_type = {ft: rng.randrange(len(faults.SEVERITIES[ft])) for ft in faults.FAULT_TYPES}  # random start
+    attempts = 0
+    while len(specs) < n:
+        attempts += 1
+        if attempts > 50 * n:
+            raise ValueError(f"could not find {n} distinct tasks; the dataset is too small")
+        fault_type = order[(len(specs) + attempts // 20) % len(order)]   # move on if a type is exhausted
+        hosts = [sid for sid in loaded if eligible[(sid, fault_type)]]
+        if not hosts:
             raise ValueError(f"no song can host a {fault_type} fault")
-        severity = rng.randrange(len(faults.SEVERITIES[fault_type]))
+        fewest = min(uses[sid] for sid in hosts)
+        song_id = rng.choice([sid for sid in hosts if uses[sid] == fewest])
+        stems, sr = loaded[song_id]
+        severity = per_type[fault_type] % len(faults.SEVERITIES[fault_type])     # cycle sizes evenly
         fault = faults.choose(fault_type, severity, stems, sr, rng)
         hint_level = rng.choice(["vague", "none"])
+        key = (song_id, fault.type, fault.stem, fault.severity, hint_level)
+        if key in seen:
+            continue
+        seen.add(key)
+        uses[song_id] += 1
+        per_type[fault_type] += 1
+        i = len(specs)
         specs.append(TaskSpec(
             task_id=f"{set_name}-{i + 1:03d}",
             song_id=song_id,

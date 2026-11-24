@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from zosimix import audio, faults, tasks
-from zosimix.songs import Song, check_stem_sum, list_songs
+from zosimix.songs import Song, check_stem_sum, family_of, list_songs
 
 SR = 44100
 SECONDS = 3
@@ -112,7 +112,7 @@ def test_generate_is_reproducible_and_covers_fault_types(songs_root):
 def test_hints_never_name_the_stem(songs_root):
     for spec in tasks.generate("t", 14, seed=1, songs=list_songs(songs_root)):
         stem = spec.fault["stem"]
-        if stem:
+        if stem and stem != family_of(stem):         # a stem literally named "bass" is its own family
             assert stem not in spec.brief
 
 

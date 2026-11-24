@@ -1,0 +1,88 @@
+{
+  "set": "smoke",
+  "seed": 7,
+  "tasks": [
+    {
+      "task_id": "smoke-001",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "clipping",
+        "stem": "bowed_strings_string_section",
+        "severity": 0,
+        "params": {
+          "depth_db": 6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    },
+    {
+      "task_id": "smoke-002",
+      "song_id": "albumdb-01-extraordinary",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "smoke-003",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "pan",
+        "stem": "bass_bass_guitar",
+        "severity": 0,
+        "params": {
+          "pan": -0.3
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "smoke-004",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "gain",
+        "stem": "bass_bass_guitar",
+        "severity": 1,
+        "params": {
+          "gain_db": -6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "I can barely hear the bass."
+    },
+    {
+      "task_id": "smoke-005",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "mud",
+        "stem": "drums_overheads",
+        "severity": 0,
+        "params": {
+          "freq_hz": 257.9,
+          "gain_db": 3.0,
+          "q": 1.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "smoke-006",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads_2",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "The drums sound thin and lack punch."
+    }
+  ]
+}
