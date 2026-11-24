@@ -16,7 +16,7 @@ import random
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
-from pedalboard import PeakFilter
+from pedalboard import LowpassFilter, PeakFilter
 
 from zosimix import audio
 from zosimix.songs import family_of
@@ -75,15 +75,45 @@ def _is_centred(a: np.ndarray) -> bool:
     return corr > 0.95 and balance_db < 1.0
 
 
+POLARITY_MIN_LOSS_DB = 1.0     # flipping the mic must cost the drum bus at least this much low end
+POLARITY_LOWPASS_HZ = 500.0
+
+
+def _polarity_candidates(stems: dict[str, np.ndarray], sr: int, audible: list[str]) -> list[str]:
+    """Drum mics whose inversion audibly and unambiguously damages the kit sound.
+
+    Inverting one mic only matters against the other mics that pick up the same drum.
+    In processed or sample-replaced stems the mics may barely correlate (flipping changes
+    nothing audible), or the clean mix may already be "out of phase" (then the correct
+    answer is ambiguous). So a mic qualifies only if flipping it makes the summed drum bus
+    lose at least POLARITY_MIN_LOSS_DB of low end, where polarity problems are heard (D41).
+    Overheads always stay as the reference.
+    """
+    drums = [n for n in audible if family_of(n) == "drums"]
+    if len(drums) < 2:
+        return []
+    lowpass = LowpassFilter(cutoff_frequency_hz=POLARITY_LOWPASS_HZ)
+    low = {n: lowpass(stems[n].mean(axis=1).astype(np.float32)[None, :], sr)[0].astype(np.float64)
+           for n in drums}
+    length = min(len(x) for x in low.values())
+    bus = sum(x[:length] for x in low.values())
+    clean_rms = np.sqrt(np.mean(bus ** 2))
+    out = []
+    for n in drums:
+        if "overhead" in n.lower():
+            continue
+        flipped_rms = np.sqrt(np.mean((bus - 2 * low[n][:length]) ** 2))
+        if audio.gain_to_db(clean_rms / max(flipped_rms, 1e-20)) >= POLARITY_MIN_LOSS_DB:
+            out.append(n)
+    return out
+
+
 def eligible_stems(fault_type: str, stems: dict[str, np.ndarray], sr: int) -> list[str]:
     audible = [n for n, a in stems.items() if not _is_silent(a)]
     if fault_type in ("gain", "clipping"):
         return audible
     if fault_type == "polarity":
-        # Inverting a stem is only audible against other stems that carry the same sound,
-        # e.g. the separate microphones of one drum kit. Overheads stay as the reference.
-        drums = [n for n in audible if family_of(n) == "drums"]
-        return [n for n in drums if "overhead" not in n.lower()] if len(drums) >= 2 else []
+        return _polarity_candidates(stems, sr, audible)
     if fault_type == "resonance":
         return [n for n in audible if len(_energy_band(stems[n], sr, 300, 8000)) > 0]
     if fault_type == "mud":

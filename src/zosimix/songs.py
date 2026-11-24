@@ -22,6 +22,7 @@ import numpy as np
 from zosimix import audio
 
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "songs"
+HEADROOM_DBFS = -1.0          # the clean mix of every song is scaled to peak here (D40)
 
 # Instrument families, used for stem selection and for vague client hints.
 # Order matters: the first prefix that matches a stem name wins.
@@ -60,6 +61,20 @@ class Song:
         if len(rates) != 1:
             raise ValueError(f"{self.song_id}: stems have mixed sample rates {rates}")
         return stems, rates.pop()
+
+    def load_clean_stems(self) -> tuple[dict[str, np.ndarray], int, float]:
+        """Stems scaled by one song-wide gain so the clean mix peaks at HEADROOM_DBFS.
+
+        Some datasets' stems sum far above full scale (AlbumDB song 01 peaks at +8 dBFS
+        before mastering). Scaling every stem by the same gain keeps the balance, which is
+        the ground truth, while stopping FL renders from clipping and stopping the agent
+        from mistaking dataset level for a clipping fault (D40).
+        Returns (stems, sample_rate, applied_gain_db). Graders must use these same stems.
+        """
+        stems, sr = self.load_stems()
+        gain_db = min(0.0, HEADROOM_DBFS - audio.gain_to_db(audio.peak(audio.mix(stems))))
+        gain = audio.db_to_gain(gain_db)
+        return {name: a * gain for name, a in stems.items()}, sr, gain_db
 
     @property
     def info(self) -> dict:

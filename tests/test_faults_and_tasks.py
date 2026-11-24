@@ -126,3 +126,17 @@ def test_workspace_hides_which_stem_changed(songs_root, tmp_path):
     assert {(i.channels, i.subtype) for i in infos} == {(2, "FLOAT")}       # all identical format
     assert (ws / "brief.md").read_text(encoding="utf-8").startswith(tasks.BASE_INSTRUCTION)
     assert not any(p.name.endswith(".json") for p in ws.rglob("*"))         # no ground truth in workspace
+
+
+def test_clean_stems_are_scaled_to_headroom_without_changing_balance(songs_root, tmp_path):
+    from zosimix.songs import HEADROOM_DBFS
+    song = _song(songs_root)
+    stems, _ = song.load_stems()
+    hot = {name: a * 10.0 for name, a in stems.items()}                 # +20 dB: sum far over full scale
+    for name, a in hot.items():
+        audio.write(song.folder / "stems" / f"{name}.wav", a, SR)
+    clean, _, gain_db = song.load_clean_stems()
+    assert audio.gain_to_db(audio.peak(audio.mix(clean))) == pytest.approx(HEADROOM_DBFS, abs=1e-6)
+    ratio = audio.rms(clean["bass"]) / audio.rms(clean["vox_lead"])
+    assert ratio == pytest.approx(audio.rms(hot["bass"]) / audio.rms(hot["vox_lead"]))   # balance kept
+    assert gain_db < 0

@@ -180,3 +180,12 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 
 **D39 — Dataset citations are mandatory** · 2026-11-24 · accepted
 - Any public output that uses MoisesDB or AlbumDB data (README results, blog post, demo video, a paper) cites them using the BibTeX in `CITATIONS.md`. For MoisesDB that is Pereira et al. 2023, arXiv:2307.15913, as specified by the owner. Each song's `song.json` also carries its attribution.
+
+**D40 — Every song's clean mix is scaled to peak at −1 dBFS** · 2026-11-24 · accepted
+- *Finding:* AlbumDB song 01's stems sum to a peak of **+8.2 dBFS**, because the stems are pre-master and a limiter brought the released master down. Left alone, FL's 24-bit renders would clip, and the agent might report "clipping" that is really just the dataset's level.
+- *Rule:* `Song.load_clean_stems()` scales all stems of a song by one shared gain (−9.7 dB for song 01, −5.2 dB for song 10). The balance, which is the ground truth, is unchanged. Workspaces and graders must both use these scaled stems.
+
+**D41 — Polarity faults only on drum mics whose flip audibly and unambiguously thins the drum bus** · 2026-11-24 · accepted
+- *Finding:* in AlbumDB song 01 the kick mic is essentially uncorrelated with the overheads (|r| ≈ 0.01), and the snare is already anti-correlated in the clean mix (r ≈ −0.16 at a 4.4 ms lag). The stems are processed, so flipping one mic is either inaudible or has no clear correct answer.
+- *Rule:* a non-overhead drum mic qualifies only if flipping it lowers the low-passed (< 500 Hz) drum-bus RMS by **≥ 1 dB**. With that rule, neither AlbumDB song has any eligible mic, so polarity tasks will come from MoisesDB's raw multi-mic drums.
+- *Implication for day 5:* plain broadband correlation is too weak to detect polarity. The perception tool needs low-passed, lag-searched correlation, or a bus-energy-on-flip test like this one.

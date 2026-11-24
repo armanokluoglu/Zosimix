@@ -75,7 +75,7 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
     """Stratified sampling: cycle through the fault types so each appears about equally,
     and pick the song, severity, stem and hint level at random for each task."""
     rng = random.Random(seed)
-    loaded = {s.song_id: s.load_stems() for s in songs}
+    loaded = {s.song_id: s.load_clean_stems()[:2] for s in songs}
     order = faults.FAULT_TYPES[:]
     rng.shuffle(order)
     specs: list[TaskSpec] = []
@@ -122,7 +122,7 @@ def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT) -> Pat
     count or name can't give away which stem was changed.
     """
     song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
-    stems, sr = song.load_stems()
+    stems, sr, _ = song.load_clean_stems()
     fault = faults.Fault(**spec.fault)
     stems_dir = dest / "stems"
     for name, clean in stems.items():
