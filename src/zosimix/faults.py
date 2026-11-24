@@ -158,14 +158,6 @@ def _peak_filter(a: np.ndarray, sr: int, freq: float, gain_db: float, q: float) 
     return out.T.astype(np.float64)
 
 
-def pan_gains(pan: float) -> tuple[float, float]:
-    """Constant-power pan law, normalized so the centre position leaves both channels at
-    unity gain. pan is -1 (hard left) .. 0 (centre) .. +1 (hard right).
-    NOTE: FL's own pan law must be calibrated against this before the parity check (§3.3)."""
-    angle = (pan + 1.0) * np.pi / 4.0
-    return float(np.cos(angle) * np.sqrt(2.0)), float(np.sin(angle) * np.sqrt(2.0))
-
-
 def apply(fault: Fault, a: np.ndarray, sr: int) -> np.ndarray:
     """Return the faulty version of stem audio `a`. The input is not modified."""
     p = fault.params
@@ -178,7 +170,7 @@ def apply(fault: Fault, a: np.ndarray, sr: int) -> np.ndarray:
     if fault.type in ("resonance", "mud"):
         return _peak_filter(a, sr, p["freq_hz"], p["gain_db"], p["q"])
     if fault.type == "pan":
-        left, right = pan_gains(p["pan"])
+        left, right = audio.pan_gains(p["pan"])
         mono = a.mean(axis=1)
         return np.stack([mono * left, mono * right], axis=1)
     if fault.type == "clipping":

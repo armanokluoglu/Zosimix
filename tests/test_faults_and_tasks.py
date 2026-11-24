@@ -89,8 +89,8 @@ def test_resonance_boosts_energy_at_its_frequency(songs_root):
 
 
 def test_pan_law_keeps_centre_at_unity_and_moves_energy_to_one_side():
-    assert faults.pan_gains(0.0) == pytest.approx((1.0, 1.0))
-    left, right = faults.pan_gains(0.9)
+    assert audio.pan_gains(0.0) == pytest.approx((1.0, 1.0))
+    left, right = audio.pan_gains(0.9)
     assert right > 1.0 > left
 
 

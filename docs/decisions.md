@@ -200,3 +200,14 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
   - The importer keeps multiple files of the same part as separate stems (`_1`, `_2`), because summing them destroys exactly the mic pairs where polarity problems live.
   - The polarity rule no longer excludes overheads. The ≥ 1 dB low-end-loss test (D41) is the only criterion.
   - Track-type names are cut to 3 words, since they appear in FL's mixer and in every tool call.
+
+## Day 4: offline engine
+
+**D43 — The mix state is stored in real units; the offline engine renders it with per-track caching** · 2026-11-24 · accepted
+- *Mix state:* for each track, gain (dB), pan (a −1..1 balance control), polarity, stereo width (0 = mono .. 1 = unchanged .. 2), and up to 7 EQ bands (peaking, low shelf, high shelf, high-pass, low-pass), stored in Hz, dB and Q. Converting to FL's 0..1 knob positions is the FL engine's job, guided by calibration. Values outside the action space are rejected with a readable error.
+- *The gain limit is the total gain, −60..+18 dB:* FL's fader tops out at +5.6 dB, but a −10 dB gain fault needs +10 dB to undo. The FL engine will put any boost above the fader's range onto PEQ2's main level. PEQ2's real range must be confirmed during calibration.
+- *Processing order:* polarity → EQ → width → pan → gain. Every step is linear, so the order only matters numerically.
+- *Pan law:* one shared function, `audio.pan_gains`, used by both the pan fault and the engine, so the two always agree. Undoing a pan fault takes panning back *and* raising the fader by −20·log10(cos(p·π/2)), as in FL. **Open question for the graders (days 6–7):** should repairs be scored after gain-matching the whole mix? An agent that fixes the balance but leaves the overall level slightly off shouldn't be punished like one that broke the balance.
+- *Known mismatch:* pedalboard's high-pass and low-pass filters are first order (6 dB/oct). PEQ2's slope is configurable. To be resolved during calibration. No v1 fault needs them.
+- *Speed, measured on real songs:* one fader or EQ move re-renders in 0.1–0.3 s, and 2 EQ bands on every track takes 2–3 s, against about 80 s for an FL render. That confirms D36: the offline preview is fast enough for every `commit_changes`.
+- *Guarantee, enforced by tests:* every fixable v1 fault can be undone in this engine (residual < −100 dB for gain, polarity and pan; < −40 dB for the EQ faults). If that ever breaks, the benchmark would contain unsolvable tasks.

@@ -71,3 +71,14 @@ def long_term_spectrum(audio: np.ndarray, sr: int, n_fft: int = 8192) -> tuple[n
     power /= max(len(frames), 1)
     freqs = np.fft.rfftfreq(n_fft, 1.0 / sr)
     return freqs, 10.0 * np.log10(power + 1e-20)
+
+
+def pan_gains(pan: float) -> tuple[float, float]:
+    """Constant-power pan law, normalized so the centre position leaves both channels at
+    unity gain. pan is -1 (hard left) .. 0 (centre) .. +1 (hard right).
+
+    Used by both the pan fault and the offline engine, so they always agree.
+    NOTE: FL's own pan law must be calibrated against this before the parity check (§3.3).
+    """
+    angle = (pan + 1.0) * np.pi / 4.0
+    return float(np.cos(angle) * np.sqrt(2.0)), float(np.sin(angle) * np.sqrt(2.0))
