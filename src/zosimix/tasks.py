@@ -105,9 +105,18 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
         song_id = rng.choice([sid for sid in hosts if uses[sid] == fewest])
         stems, sr = loaded[song_id]
         severity = per_type[fault_type] % len(faults.SEVERITIES[fault_type])     # cycle sizes evenly
-        fault = faults.choose(fault_type, severity, stems, sr, rng)
+        try:
+            fault = faults.choose(fault_type, severity, stems, sr, rng)
+        except ValueError:          # this song can't carry this size of a mix-sized fault (D69)
+            fault = None
         hint_level = rng.choice(["vague", "none"])
-        key = (song_id, fault.type, fault.stem, fault.severity, hint_level)
+        if fault is None:
+            misses += 1
+            if misses == MAX_DUPLICATE_DRAWS:
+                turn += 1
+                misses = 0
+            continue
+        key =(song_id, fault.type, fault.stem, fault.severity, hint_level)
         if key in seen:
             misses += 1
             if misses == MAX_DUPLICATE_DRAWS:   # this type looks used up: give its turn to the next type
@@ -130,11 +139,38 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
     return specs
 
 
-def save(set_name: str, seed: int, specs: list[TaskSpec]) -> Path:
+REVISED_TYPES = ("mud", "resonance")
+
+
+def revise_eq_faults(source: list[TaskSpec], set_name: str, seed: int, songs: list[Song]) -> list[TaskSpec]:
+    """A new version of a set where only the mud and resonance faults are redrawn with the
+    mix-sized rule (D69). Each redrawn task keeps its song, severity and hint level; every
+    other task is copied unchanged, so its earlier results still describe the same task.
+    Task numbers are kept: `full-002` becomes `full-v2-002`."""
+    rng = random.Random(seed)
+    loaded: dict[str, tuple] = {}
+    out = []
+    for spec in source:
+        number = spec.task_id.rsplit("-", 1)[1]
+        if spec.fault["type"] not in REVISED_TYPES:
+            out.append(TaskSpec(**{**asdict(spec), "task_id": f"{set_name}-{number}"}))
+            continue
+        if spec.song_id not in loaded:
+            song = next(s for s in songs if s.song_id == spec.song_id)
+            loaded[spec.song_id] = song.load_clean_stems()[:2]
+        stems, sr = loaded[spec.song_id]
+        fault = faults.choose(spec.fault["type"], spec.fault["severity"], stems, sr, rng)
+        out.append(TaskSpec(f"{set_name}-{number}", spec.song_id, fault.to_dict(), spec.hint_level,
+                            vague_hint(fault) if spec.hint_level == "vague" else ""))
+    return out
+
+
+def save(set_name: str, seed: int, specs: list[TaskSpec], derived_from: str | None = None) -> Path:
     TASKS_DIR.mkdir(exist_ok=True)
     path = TASKS_DIR / f"{set_name}.json"
-    path.write_text(json.dumps({"set": set_name, "seed": seed, "tasks": [asdict(s) for s in specs]}, indent=2),
-                    encoding="utf-8")
+    data = {"set": set_name, "seed": seed, **({"derived_from": derived_from} if derived_from else {}),
+            "tasks": [asdict(s) for s in specs]}
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return path
 
 
@@ -170,14 +206,22 @@ def main() -> None:
     g.add_argument("--set", required=True)
     g.add_argument("--n", type=int, required=True)
     g.add_argument("--seed", type=int, required=True)
+    r = sub.add_parser("revise", help="redraw only the mud/resonance faults of an existing set (D69)")
+    r.add_argument("--from", dest="source", required=True)
+    r.add_argument("--set", required=True)
+    r.add_argument("--seed", type=int, required=True)
     m = sub.add_parser("materialize")
     m.add_argument("task_id")
     m.add_argument("--dest", type=Path, required=True)
     args = ap.parse_args()
 
-    if args.cmd == "generate":
-        specs = generate(args.set, args.n, args.seed, list_songs())
-        path = save(args.set, args.seed, specs)
+    if args.cmd in ("generate", "revise"):
+        if args.cmd == "generate":
+            specs = generate(args.set, args.n, args.seed, list_songs())
+            path = save(args.set, args.seed, specs)
+        else:
+            specs = revise_eq_faults(load(args.source), args.set, args.seed, list_songs())
+            path = save(args.set, args.seed, specs, derived_from=args.source)
         for s in specs:
             f = s.fault
             print(f"{s.task_id}  {s.song_id:<34} {f['type']:<9} {f['stem']!s:<26} sev {f['severity']}  "

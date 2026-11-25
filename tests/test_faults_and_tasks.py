@@ -8,6 +8,7 @@ and enough mid-range content for resonance and mud.
 from __future__ import annotations
 
 import json
+import random
 
 import numpy as np
 import pytest
@@ -154,3 +155,39 @@ def test_polarity_needs_an_audible_low_end_loss():
     assert faults.eligible_stems("polarity", stems, SR) == []
     stems["drums_kick_out"] = 0.8 * kick                           # a second mic on the same drum
     assert "drums_kick_out" in faults.eligible_stems("polarity", stems, SR)
+
+
+@pytest.mark.parametrize("fault_type", ["mud", "resonance"])
+@pytest.mark.parametrize("severity", [0, 1, 2])
+def test_eq_faults_change_the_mix_by_their_severity(songs_root, fault_type, severity):
+    """D69: mud and resonance are sized by how much they change the mix, so a task's
+    severity means the same thing whichever stem carries the fault."""
+    stems, sr, _ = _song(songs_root).load_clean_stems()
+    fault = faults.choose(fault_type, severity, stems, sr, random.Random(severity))
+    target = faults.SEVERITIES[fault_type][severity]
+    broken = dict(stems)
+    broken[fault.stem] = faults.apply(fault, stems[fault.stem], sr)
+    lo, hi = faults.fault_band(fault_type, fault.params["freq_hz"])
+    rise = faults.band_vs_rest_db(audio.mix(broken), sr, lo, hi) - faults.band_vs_rest_db(audio.mix(stems), sr, lo, hi)
+    assert target <= rise < target + 0.5
+    assert rise == pytest.approx(fault.params["mix_rise_db"], abs=0.01)
+    assert 0 < fault.params["gain_db"] <= faults.MAX_FILTER_GAIN_DB[fault_type]
+
+
+def test_resonance_lands_on_the_stems_own_energy(songs_root):
+    """A boost in a spectral dip has nothing to ring with (D69)."""
+    stems, sr, _ = _song(songs_root).load_clean_stems()
+    for seed in range(5):
+        fault = faults.choose("resonance", 1, stems, sr, random.Random(seed))
+        peaks = faults.own_peaks(stems[fault.stem], sr)
+        assert fault.params["freq_hz"] == pytest.approx(min(peaks, key=lambda p: abs(p - fault.params["freq_hz"])), abs=0.1)
+
+
+def test_a_stem_too_quiet_in_the_mix_cannot_carry_an_eq_fault():
+    t = np.arange(SR * 2) / SR
+    loud = (0.3 * np.sin(2 * np.pi * 300 * t) + 0.3 * np.sin(2 * np.pi * 2000 * t))[:, None]
+    quiet = 0.003 * loud                                          # 50 dB down
+    stems = {"keys_loud": loud, "vox_quiet": quiet}
+    with pytest.raises(ValueError):
+        faults._choose_eq_fault("mud", 2, 3.0, ["vox_quiet"], stems, SR, random.Random(0))
+    assert faults._choose_eq_fault("mud", 2, 3.0, ["keys_loud"], stems, SR, random.Random(0)).stem == "keys_loud"

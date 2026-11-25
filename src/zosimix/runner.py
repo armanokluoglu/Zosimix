@@ -274,7 +274,8 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     return row
 
 
-def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: int, model: str) -> None:
+def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: int, model: str,
+                     only: list[str] | None = None) -> None:
     """Which code, model and settings produced this run, appended once per start or resume (D65).
     A resume from different code shows up here as a second entry with another commit."""
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True,
@@ -283,7 +284,7 @@ def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: 
                                 capture_output=True, text=True, check=False).stdout.strip())
     entry = {"started": dt.datetime.now().isoformat(timespec="seconds"), "commit": commit,
              "uncommitted_changes": dirty, "set": set_name, "configs": configs, "repeats": repeats,
-             "model": model, "claude_cli": None}
+             "model": model, "claude_cli": None, **({"only_tasks": only} if only else {})}
     exe = shutil.which("claude")
     if exe:
         entry["claude_cli"] = subprocess.run([exe, "--version"], capture_output=True, text=True,
@@ -292,7 +293,10 @@ def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: 
         f.write(json.dumps(entry) + "\n")
 
 
-def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str | None) -> Path:
+def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str | None,
+        only: list[str] | None = None) -> Path:
+    """Run every task of a set, or just the task ids in `only` (D69: after a set revision,
+    only the changed tasks need new runs; the unchanged ones keep their earlier results)."""
     run_id = run_id or f"{dt.datetime.now():%Y%m%d-%H%M}-{set_name}"
     run_dir = RUNS / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -309,8 +313,13 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
                  f"  py -3.11 -m venv {venv}\n"
                  f"  {BASELINE_PY} -m pip install {' '.join(BASELINE_PACKAGES)}")
     specs = tasks.load(set_name)
+    if only:
+        unknown = set(only) - {s.task_id for s in specs}
+        if unknown:
+            sys.exit(f"not in set {set_name}: {', '.join(sorted(unknown))}")
+        specs = [s for s in specs if s.task_id in only]
     profiles = targets.load_profiles()
-    _record_run_info(run_dir, set_name, configs, repeats, model)
+    _record_run_info(run_dir, set_name, configs, repeats, model, only)
     print(f"run {run_id}: {len(specs)} tasks x {configs} x {repeats} repeat(s); {len(done)} already done")
     # Repeats outermost: every task gets its first run before any task gets a second, so a
     # run cut short by a usage limit still holds one complete pass over the set (D65).
@@ -369,11 +378,13 @@ def main() -> None:
     r.add_argument("--repeats", type=int, default=1)
     r.add_argument("--model", default=DEFAULT_MODEL)
     r.add_argument("--run", dest="run_id", help="resume this run id")
+    r.add_argument("--tasks", help="comma-separated task ids: run only these")
     p = sub.add_parser("report")
     p.add_argument("--run", dest="run_id", required=True)
     args = ap.parse_args()
     if args.cmd == "run":
-        run(args.set, args.config, args.repeats, args.model, args.run_id)
+        only = [t.strip() for t in args.tasks.split(",")] if args.tasks else None
+        run(args.set, args.config, args.repeats, args.model, args.run_id, only)
     else:
         print(report(args.run_id))
 

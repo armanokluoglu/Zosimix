@@ -1,0 +1,436 @@
+{
+  "set": "full-v2",
+  "seed": 69,
+  "derived_from": "full",
+  "tasks": [
+    {
+      "task_id": "full-v2-001",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads_1",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "The drums sound thin and lack punch."
+    },
+    {
+      "task_id": "full-v2-002",
+      "song_id": "albumdb-10-it-ain-t-easy-to-mend-a-heart",
+      "fault": {
+        "type": "mud",
+        "stem": "viola",
+        "severity": 2,
+        "params": {
+          "freq_hz": 277.5,
+          "gain_db": 12.0,
+          "q": 1.0,
+          "mix_rise_db": 3.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "full-v2-003",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "pan",
+        "stem": "drums_kick_drum",
+        "severity": 2,
+        "params": {
+          "pan": 0.9
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "full-v2-004",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "resonance",
+        "stem": "percussion_pitched_percussion_mallets",
+        "severity": 2,
+        "params": {
+          "freq_hz": 2460.2,
+          "gain_db": 17.0,
+          "q": 8.0,
+          "mix_rise_db": 6.01
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the percussion sounds harsh or ringy."
+    },
+    {
+      "task_id": "full-v2-005",
+      "song_id": "albumdb-01-extraordinary",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-006",
+      "song_id": "moisesdb-holy-magick-stolen-car",
+      "fault": {
+        "type": "gain",
+        "stem": "drums_snare_drum",
+        "severity": 0,
+        "params": {
+          "gain_db": -3.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "I can barely hear the drums."
+    },
+    {
+      "task_id": "full-v2-007",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "clipping",
+        "stem": "drums_kick_drum",
+        "severity": 0,
+        "params": {
+          "depth_db": 6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    },
+    {
+      "task_id": "full-v2-008",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-009",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "mud",
+        "stem": "wind_reeds_saxophone_clarinets",
+        "severity": 0,
+        "params": {
+          "freq_hz": 386.2,
+          "gain_db": 6.3,
+          "q": 1.0,
+          "mix_rise_db": 1.02
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-010",
+      "song_id": "albumdb-01-extraordinary",
+      "fault": {
+        "type": "pan",
+        "stem": "vox_backing_verse",
+        "severity": 0,
+        "params": {
+          "pan": -0.3
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-011",
+      "song_id": "moisesdb-holy-magick-stolen-car",
+      "fault": {
+        "type": "resonance",
+        "stem": "other_keys_synth_pad",
+        "severity": 0,
+        "params": {
+          "freq_hz": 1916.5,
+          "gain_db": 15.9,
+          "q": 8.0,
+          "mix_rise_db": 2.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the keys sounds harsh or ringy."
+    },
+    {
+      "task_id": "full-v2-012",
+      "song_id": "albumdb-10-it-ain-t-easy-to-mend-a-heart",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "full-v2-013",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "gain",
+        "stem": "bowed_strings_other_strings",
+        "severity": 1,
+        "params": {
+          "gain_db": -6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "I can barely hear the strings."
+    },
+    {
+      "task_id": "full-v2-014",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "clipping",
+        "stem": "drums_overheads_1",
+        "severity": 1,
+        "params": {
+          "depth_db": 12.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-015",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads_2",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-016",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "mud",
+        "stem": "vocals_lead_female_singer",
+        "severity": 1,
+        "params": {
+          "freq_hz": 312.6,
+          "gain_db": 8.3,
+          "q": 1.0,
+          "mix_rise_db": 2.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "full-v2-017",
+      "song_id": "moisesdb-holy-magick-stolen-car",
+      "fault": {
+        "type": "pan",
+        "stem": "other_fx_processed_sound_3",
+        "severity": 1,
+        "params": {
+          "pan": -0.6
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-018",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "resonance",
+        "stem": "drums_snare_drum",
+        "severity": 1,
+        "params": {
+          "freq_hz": 317.6,
+          "gain_db": 15.0,
+          "q": 8.0,
+          "mix_rise_db": 4.04
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the drums sounds harsh or ringy."
+    },
+    {
+      "task_id": "full-v2-019",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-020",
+      "song_id": "albumdb-01-extraordinary",
+      "fault": {
+        "type": "gain",
+        "stem": "vox_backing_chorus_l",
+        "severity": 2,
+        "params": {
+          "gain_db": 10.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-021",
+      "song_id": "albumdb-10-it-ain-t-easy-to-mend-a-heart",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_acoustic_l",
+        "severity": 2,
+        "params": {
+          "depth_db": 18.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-022",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads_1",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-023",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "mud",
+        "stem": "drums_snare_drum",
+        "severity": 2,
+        "params": {
+          "freq_hz": 300.1,
+          "gain_db": 7.3,
+          "q": 1.0,
+          "mix_rise_db": 3.06
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-024",
+      "song_id": "moisesdb-holy-magick-stolen-car",
+      "fault": {
+        "type": "pan",
+        "stem": "bass_bass_synthesizer_moog_1",
+        "severity": 2,
+        "params": {
+          "pan": -0.9
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-025",
+      "song_id": "albumdb-01-extraordinary",
+      "fault": {
+        "type": "resonance",
+        "stem": "guitar_electric_lead",
+        "severity": 2,
+        "params": {
+          "freq_hz": 3924.4,
+          "gain_db": 15.2,
+          "q": 8.0,
+          "mix_rise_db": 6.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the guitars sounds harsh or ringy."
+    },
+    {
+      "task_id": "full-v2-026",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "full-v2-027",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "gain",
+        "stem": "drums_kick_drum",
+        "severity": 0,
+        "params": {
+          "gain_db": 3.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-028",
+      "song_id": "albumdb-10-it-ain-t-easy-to-mend-a-heart",
+      "fault": {
+        "type": "clipping",
+        "stem": "viola",
+        "severity": 0,
+        "params": {
+          "depth_db": 6.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "full-v2-029",
+      "song_id": "moisesdb-firefly-big-life",
+      "fault": {
+        "type": "polarity",
+        "stem": "drums_overheads_2",
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "The drums sound thin and lack punch."
+    },
+    {
+      "task_id": "full-v2-030",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "mud",
+        "stem": "vocals_lead_female_singer",
+        "severity": 0,
+        "params": {
+          "freq_hz": 280.1,
+          "gain_db": 4.3,
+          "q": 1.0,
+          "mix_rise_db": 1.04
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    }
+  ]
+}

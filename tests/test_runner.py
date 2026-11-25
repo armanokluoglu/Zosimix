@@ -175,3 +175,15 @@ def test_skill_contains_no_benchmark_specifics():
     specifics |= {n.lower() for s in list_songs() for n in s.stem_paths if "_" in n}
     specifics |= {"severity", "smoke-", "full-", "seed"}
     assert not [w for w in specifics if w in text]
+
+
+def test_only_the_listed_tasks_run(isolated, monkeypatch):
+    """D69: after a set revision only the changed tasks get new runs."""
+    fault = faults.Fault("gain", "bass_bass_guitar", 1, {"gain_db": 6.0})
+    tasks.save("t", 1, [tasks.TaskSpec(f"t-00{i}", SONG, fault.to_dict(), "none", "") for i in (1, 2)])
+    monkeypatch.setattr(runner, "build_command", fake({"diagnosis": {"verdict": "no_fault", "findings": []},
+                                                       "mix_state": {}}))
+    runner.run("t", ["zosimix"], 1, "sonnet", "r8", only=["t-002"])
+    assert [r["task_id"] for r in results(isolated)] == ["t-002"]
+    info = json.loads((isolated / "runs" / "r8" / "run_info.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert info["only_tasks"] == ["t-002"]
