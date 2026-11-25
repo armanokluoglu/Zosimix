@@ -16,9 +16,8 @@ import random
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
-from pedalboard import LowpassFilter
 
-from zosimix import audio, eq
+from zosimix import analysis, audio, eq
 from zosimix.songs import family_of
 
 FAULT_TYPES = ["gain", "polarity", "resonance", "mud", "pan", "clipping", "control"]
@@ -93,15 +92,15 @@ def _polarity_candidates(stems: dict[str, np.ndarray], sr: int, audible: list[st
     drums = [n for n in audible if family_of(n) == "drums"]
     if len(drums) < 2:
         return []
-    lowpass = LowpassFilter(cutoff_frequency_hz=POLARITY_LOWPASS_HZ)
-    low = {n: lowpass(stems[n].mean(axis=1).astype(np.float32)[None, :], sr)[0].astype(np.float64)
-           for n in drums}
-    length = min(len(x) for x in low.values())
-    bus = sum(x[:length] for x in low.values())
+    # The same low-pass as the grader and the phase tool (analysis.phase_report), so a mic
+    # that qualifies here is measured the same way when an answer is graded (D62).
+    length = min(len(stems[n]) for n in drums)
+    low = {n: analysis.lowpass_mono(stems[n][:length], sr, POLARITY_LOWPASS_HZ) for n in drums}
+    bus = sum(low.values())
     clean_rms = np.sqrt(np.mean(bus ** 2))
     out = []
     for n in drums:
-        flipped_rms = np.sqrt(np.mean((bus - 2 * low[n][:length]) ** 2))
+        flipped_rms = np.sqrt(np.mean((bus - 2 * low[n]) ** 2))
         if audio.gain_to_db(clean_rms / max(flipped_rms, 1e-20)) >= POLARITY_MIN_LOSS_DB:
             out.append(n)
     return out

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zosimix.fl.bridge import Bridge
+from zosimix.fl.bridge import Bridge, BridgeError
 
 PROBE = Path(__file__).resolve().parents[3] / "fl_bridge" / "calibration" / "probe.json"
 
@@ -82,17 +82,18 @@ def fader_pos(db: float) -> float:
 def set_fader_db(fl: Bridge, track: int, db: float, tol_db: float = 0.005) -> float:
     """Set a fader to `db` as FL itself reports it. Returns the dB FL reports at the end.
 
-    The probe table gets within a few hundredths of a dB. Bisection against FL's own dB
-    readout then closes the gap; it always converges because the fader only ever rises.
+    The probe table's guess is usually within a few hundredths of a dB. From there,
+    bisection over the fader's whole travel (0..1) closes the gap against FL's own dB
+    readout. It always converges because the fader only ever rises, from -inf dB at 0.
+    The whole travel matters: the table stops at -42 dB, the mix state goes down to -60.
     """
-    guess = fader_pos(db)
-    lo, hi = max(guess - 0.01, 0.0), min(guess + 0.01, 1.0)
-    pos, got = guess, math.nan
-    for _ in range(25):
+    lo, hi = 0.0, 1.0
+    pos, got = fader_pos(db), math.nan
+    for _ in range(40):
         fl.set_and_confirm("set_volume", "get_volume", track, pos)
         got = float(fl.call("get_volume_db", track)[0])
         if abs(got - db) <= tol_db:
-            break
+            return got
         lo, hi = (pos, hi) if got < db else (lo, pos)
         pos = (lo + hi) / 2
-    return got
+    raise BridgeError(f"fader {track} didn't reach {db} dB; FL reports {got} dB")

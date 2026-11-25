@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 
+from zosimix.eq import BUTTERWORTH_Q
+
 EQ_BAND_TYPES = ("peaking", "low_shelf", "high_shelf", "highpass", "lowpass")
 MAX_EQ_BANDS = 7                # Fruity Parametric EQ 2 has 7 bands
 
@@ -35,7 +37,13 @@ class EqBand:
     type: str = "peaking"
     freq_hz: float = 1000.0
     gain_db: float = 0.0        # ignored by highpass/lowpass
-    q: float = 1.0              # highpass/lowpass: the bump at the cutoff (0.707 = none)
+    q: float | None = None      # None = the type's default (see __post_init__)
+
+    def __post_init__(self) -> None:
+        """Default Q: 1.0, except 0.707 for highpass/lowpass, where Q sets the bump at the
+        cutoff and 0.707 means none (D61, D62). Someone who leaves Q out gets no bump."""
+        if self.q is None:
+            self.q = BUTTERWORTH_Q if self.type in ("highpass", "lowpass") else 1.0
 
     def is_neutral(self) -> bool:
         return self.type in ("peaking", "low_shelf", "high_shelf") and self.gain_db == 0.0

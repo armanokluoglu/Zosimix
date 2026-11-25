@@ -1,10 +1,12 @@
 """FL knob conversions (D57). Pure functions, so these run without FL."""
 
 import json
+import math
 
 import pytest
 
 from zosimix.fl import controls
+from zosimix.fl.bridge import BridgeError
 
 
 def probe() -> dict:
@@ -52,3 +54,32 @@ def test_fader_table():
     assert controls.fader_pos(controls.FADER_MAX_DB) == pytest.approx(1.0, abs=1e-3)
     with pytest.raises(ValueError):
         controls.fader_pos(6.0)
+
+
+class FakeFader:
+    """Stands in for FL: a fader whose dB readout follows a fixed curve, -inf at position 0."""
+
+    def __init__(self, stuck: bool = False) -> None:
+        self.pos, self.stuck = 0.8, stuck
+
+    def set_and_confirm(self, setter, getter, track, value, **_):
+        if not self.stuck:
+            self.pos = value
+        return self.pos
+
+    def call(self, command, track):
+        assert command == "get_volume_db"
+        # 0 dB at 0.8 and +5.59 dB at 1.0, like FL's fader; the shape in between doesn't matter
+        db = -math.inf if self.pos <= 0 else 20 * math.log10((self.pos / 0.8) ** 2.884)
+        return [repr(db)]
+
+
+@pytest.mark.parametrize("target", [0.0, -6.0, 3.0, -42.0, -60.0])
+def test_set_fader_db_reaches_any_level_in_the_mix_state_range(target):
+    """D62: the probe table stops at -42 dB, but the search covers the whole travel."""
+    assert controls.set_fader_db(FakeFader(), 1, target) == pytest.approx(target, abs=0.005)
+
+
+def test_set_fader_db_raises_when_fl_does_not_follow():
+    with pytest.raises(BridgeError):
+        controls.set_fader_db(FakeFader(stuck=True), 1, -12.0)

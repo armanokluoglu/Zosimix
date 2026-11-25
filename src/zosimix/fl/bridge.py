@@ -25,7 +25,7 @@ IN_PORT, OUT_PORT = "Zosimix In", "Zosimix Out"
 
 
 class BridgeError(RuntimeError):
-    """FL answered with an error, or didn't answer at all."""
+    """FL answered with an error, didn't answer at all, or didn't end up holding a value we set."""
 
 
 class Bridge:

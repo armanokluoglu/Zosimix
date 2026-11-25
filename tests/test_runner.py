@@ -9,6 +9,7 @@ Needs the real songs in data/songs (skipped otherwise).
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 
 import pytest
@@ -24,7 +25,7 @@ import json, pathlib, sys
 out = pathlib.Path("output"); out.mkdir(exist_ok=True)
 answer = json.loads(sys.argv[1])
 (out / "diagnosis.json").write_text(json.dumps(answer["diagnosis"]))
-(out / "mix_state.json").write_text(json.dumps(answer["mix_state"]))
+(out / "mix_state.json").write_text(answer.get("mix_state_raw") or json.dumps(answer["mix_state"]))
 print(json.dumps({"type": "assistant", "message": {"content": [
     {"type": "tool_use", "name": "Read", "input": {"file_path": answer.get("peek", "stems/bass.wav")}}]}}))
 print(json.dumps({"type": "user", "message": {"content": [
@@ -101,6 +102,43 @@ def test_ordinary_tool_results_are_not_flagged(isolated, monkeypatch):
                                                        "mix_state": {}, "seen": "bass: -18.2 LUFS, severity looks mild"}))
     runner.run("t", ["zosimix"], 1, "sonnet", "r5")
     assert not results(isolated)[0]["integrity_flags"]
+
+
+def test_a_broken_mix_state_does_not_discard_a_good_diagnosis(isolated, monkeypatch):
+    """D62: each answer file is read on its own; the mix state then counts as 'no changes'."""
+    monkeypatch.setattr(runner, "build_command", fake({
+        "diagnosis": {"verdict": "fixed", "findings": [{"stem": "bass_bass_guitar", "fault_type": "gain"}]},
+        "mix_state": {}, "mix_state_raw": '{"bass_bass_guitar": {"gain_db": -6.0},}'}))
+    runner.run("t", ["zosimix"], 1, "sonnet", "r6")
+    grade = results(isolated)[0]["grade"]
+    assert grade["submitted"] and grade["detected"] and not grade["pass"]     # found, but nothing repaired
+
+
+HANGING_AGENT = r"""
+import pathlib, subprocess, sys, time
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+pathlib.Path(sys.argv[1]).write_text(str(child.pid))
+time.sleep(120)
+"""
+
+
+def _alive(pid: int) -> bool:
+    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                         check=False, capture_output=True, text=True)
+    return f'"{pid}"' in out.stdout
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="checks Windows process-tree cleanup")
+def test_a_timeout_stops_the_agents_child_processes_too(isolated, monkeypatch):
+    """D62: the MCP server is a child of claude; killing claude alone would leave it running."""
+    pid_file = isolated / "child.pid"
+    monkeypatch.setattr(runner, "TIMEOUT_S", 5)
+    monkeypatch.setattr(runner, "build_command",
+                        lambda config, workspace, model, prompt: [sys.executable, "-c", HANGING_AGENT, str(pid_file)])
+    runner.run("t", ["zosimix"], 1, "sonnet", "r7")
+    row = results(isolated)[0]
+    assert row["timed_out"] and not row["grade"]["submitted"]
+    assert not _alive(int(pid_file.read_text()))
 
 
 def test_skill_goes_into_the_system_prompt_only_for_the_full_layer(tmp_path, monkeypatch):

@@ -83,7 +83,8 @@ polarity (invert) -> EQ bands -> pan -> stereo width -> gain, then all tracks ar
       Second-order filters with the Audio EQ Cookbook (RBJ) meaning of gain and q, matched to the
       analog shape up to 20 kHz. Below about 4 kHz they equal pedalboard's PeakFilter, LowShelfFilter
       and HighShelfFilter. highpass/lowpass are 12 dB/octave; their q sets the bump at the cutoff
-      (0.707 = none) and their gain_db is ignored.
+      (0.707 = none) and their gain_db is ignored. Leaving q out means 0.707 for highpass/lowpass
+      and 1.0 for the other types.
 Tracks you leave out stay unchanged.
 
 When you are done, write exactly these two files:
@@ -184,6 +185,36 @@ def _looks_like_usage_limit(result: dict, stderr: str) -> bool:
     return any(s in text for s in ("usage limit", "rate limit", "limit reached", "rate_limit_error"))
 
 
+def _run_agent(cmd: list[str], cwd: Path, out) -> tuple[str, bool]:
+    """Run the agent with a time limit. Returns (stderr, timed_out).
+
+    On a timeout the whole process tree is stopped, not just `claude`: the MCP server it
+    started (and node, if `claude` is a .cmd shim) would otherwise keep running, keep
+    workspace files open and maybe keep writing output after the task was graded.
+    """
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=out, stderr=subprocess.PIPE, text=True,
+                            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    try:
+        _, stderr = proc.communicate(timeout=TIMEOUT_S)
+        return stderr or "", False
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
+        else:
+            proc.kill()
+        proc.communicate()
+        return "", True
+
+
+def _read_answer(path: Path) -> object | None:
+    """One answer file, or None if it's missing or isn't valid JSON. Each file is read on
+    its own, so a broken mix_state.json doesn't throw away a good diagnosis.json (D62)."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
 def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model: str,
             profiles: dict) -> dict:
     # A random folder away from run_dir: the path says nothing about the task, and the
@@ -200,21 +231,12 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
 
     started = time.time()
     with open(transcript, "w", encoding="utf-8") as out:
-        try:
-            proc = subprocess.run(build_command(config, workspace, model, prompt), check=False, cwd=workspace,
-                                  stdout=out, stderr=subprocess.PIPE, text=True, timeout=TIMEOUT_S)
-            stderr, timed_out = proc.stderr or "", False
-        except subprocess.TimeoutExpired:
-            stderr, timed_out = "", True
+        stderr, timed_out = _run_agent(build_command(config, workspace, model, prompt), workspace, out)
     wall = time.time() - started
 
     result = _final_result(transcript)
-    diagnosis_path, state_path = workspace / "output" / "diagnosis.json", workspace / "output" / "mix_state.json"
-    try:
-        diagnosis = json.loads(diagnosis_path.read_text(encoding="utf-8")) if diagnosis_path.exists() else None
-        mix_state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else None
-    except json.JSONDecodeError:
-        diagnosis, mix_state = None, None
+    diagnosis = _read_answer(workspace / "output" / "diagnosis.json")
+    mix_state = _read_answer(workspace / "output" / "mix_state.json")
 
     row = {
         "task_id": spec.task_id, "config": config, "repeat": repeat, "model": model,

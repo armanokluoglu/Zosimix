@@ -208,14 +208,15 @@ class MixSession:
         return self._update(stem, width=float(width))
 
     def set_eq_band(self, stem: str, band: int, type: str, freq_hz: float, gain_db: float = 0.0,
-                    q: float = 1.0) -> str:
+                    q: float | None = None) -> str:
+        """q=None means the type's default: 0.707 for highpass/lowpass, 1.0 otherwise."""
         self._check_stem(stem)
         if not 1 <= band <= MAX_EQ_BANDS:
             raise ValueError(f"band must be 1..{MAX_EQ_BANDS}")
         eq = copy.deepcopy(self.pending.tracks[stem].eq)
         while len(eq) < band:
             eq.append(EqBand())
-        eq[band - 1] = EqBand(type, float(freq_hz), float(gain_db), float(q))
+        eq[band - 1] = EqBand(type, float(freq_hz), float(gain_db), None if q is None else float(q))
         return self._update(stem, eq=eq)
 
     def clear_eq_band(self, stem: str, band: int) -> str:

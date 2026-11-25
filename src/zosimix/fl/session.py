@@ -22,6 +22,8 @@ import time
 from pathlib import Path
 from typing import Self
 
+import soundfile as sf
+
 from zosimix.fl.bridge import Bridge, BridgeError
 from zosimix.fl.slots import FL_ROOT, TEMPLATE
 
@@ -30,7 +32,7 @@ WORK_DIR = FL_ROOT / "work"            # no spaces: FL's command line can't hand
 LAUNCH_TIMEOUT_S = 180                 # cold start of FL with 24 audio clips
 CLOSE_TIMEOUT_S = 30
 RENDER_TIMEOUT_S = 600
-RENDER_STABLE_S = 5                    # WAV size unchanged this long => render finished
+RENDER_STUCK_S = 60                    # FL still open, WAV unchanged this long => it finished but stayed open
 
 
 class FLError(RuntimeError):
@@ -140,12 +142,15 @@ class FLSession:
             except BridgeError:
                 time.sleep(1.0)
                 continue
-            # The script can answer before the project has finished loading.
-            while time.monotonic() < deadline:
+            # The script can answer before the project has finished loading, and FL busy
+            # loading can drop a message. Either way: close this connection and try again.
+            try:
                 if "parametric" in fl.call("plugin_name", 1, 0)[0].lower():
                     return fl
-                time.sleep(0.5)
+            except BridgeError:
+                pass
             fl.close()
+            time.sleep(0.5)
         raise FLError(f"FL didn't come up with the project within {timeout_s:.0f}s")
 
     def __enter__(self) -> Self:
@@ -179,11 +184,14 @@ class FLSession:
         return _stop(self.proc)
 
 
-def render(project: Path, timeout_s: float = RENDER_TIMEOUT_S) -> Path:
+def render(project: Path, min_seconds: float = 0.0, timeout_s: float = RENDER_TIMEOUT_S) -> Path:
     """Render a saved project to WAV with FL's command line (/R). Returns the WAV's path.
 
-    "Done" means the WAV exists and has stopped growing. FL normally exits by itself
-    (spike/NOTES.md); if it stays open, we stop it, since it is our own process.
+    "Done" means FL has exited by itself, which it normally does after a render
+    (spike/NOTES.md). FL writes the file as it renders, and a pause in that is not the end,
+    so a WAV that merely stopped growing only counts after RENDER_STUCK_S, as the
+    fallback for an FL that finished but stayed open (then we stop it: it is ours).
+    `min_seconds` is the shortest acceptable result, to catch a render that was cut short.
     """
     _refuse_if_fl_running()
     outdir = project.parent / f"{project.stem}_render"
@@ -192,19 +200,28 @@ def render(project: Path, timeout_s: float = RENDER_TIMEOUT_S) -> Path:
     proc = subprocess.Popen([str(FL_EXE), "/R", "/Ewav", f"/O{outdir}", str(project)])
     start = time.monotonic()
     last_size, stable_since = -1, start
+    wav = None
     try:
         while time.monotonic() - start < timeout_s:
             time.sleep(0.5)
             wavs = list(outdir.glob("*.wav"))
-            exited = proc.poll() is not None
+            if proc.poll() is not None:
+                if not wavs:
+                    raise FLError(f"FL exited without rendering {project} (code {proc.returncode})")
+                wav = wavs[0]
+                break
             if wavs:
                 size = wavs[0].stat().st_size
                 if size != last_size:
                     last_size, stable_since = size, time.monotonic()
-                elif size > 0 and (exited or time.monotonic() - stable_since >= RENDER_STABLE_S):
-                    return wavs[0]
-            elif exited:
-                raise FLError(f"FL exited without rendering {project} (code {proc.returncode})")
-        raise FLError(f"render of {project} didn't finish within {timeout_s:.0f}s")
+                elif size > 0 and time.monotonic() - stable_since >= RENDER_STUCK_S:
+                    wav = wavs[0]
+                    break
+        if wav is None:
+            raise FLError(f"render of {project} didn't finish within {timeout_s:.0f}s")
     finally:
         _stop(proc, timeout_s=10)
+    seconds = sf.info(str(wav)).duration
+    if seconds < min_seconds:
+        raise FLError(f"render of {project} is {seconds:.2f} s long, expected at least {min_seconds:.2f} s")
+    return wav

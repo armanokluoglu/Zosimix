@@ -164,7 +164,7 @@ def run(name: str) -> dict:
     with session.FLSession(project) as s:
         reported = [apply(s.fl, k + 1, st) for k, st in enumerate(settings)]
         s.save()
-    wav = session.render(project)
+    wav = session.render(project, min_seconds=windows(len(settings))[-1][1] / SR)
     y, sr = sf.read(wav, always_2d=True)
     if sr != SR:
         raise ValueError(f"render came back at {sr} Hz")
