@@ -292,3 +292,13 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Result:* the pan task now passes (the centre convention plus the pan formula). The mud task fails without a false positive (no change made; before, a healthy guitar was EQ'd). The gain task is unchanged: +8 dB applied against a true −6 dB. Details are in `results/smoke-2.md`.
 - *Why stop:* six single runs can't separate the skill's effect from run-to-run noise, and more rounds would fit the wording to these six tasks (the smoke set is the development set; D52). The full run with repeats measures it properly.
 - *Open lever, not taken yet:* a data-derived "typical loudness relative to the mix" per instrument family, leave-one-out like the tonal target. Measured spreads across the 7 songs: bass ±3.0 dB, vocals ±1.9, guitars ±1.8, drums ±1.3. That is enough to help on 6 and 10 dB gain faults, not on 3 dB ones. It's a tool change and needs the owner's call.
+
+**D54 — Per-family level reference: tried and rejected** · 2026-11-25 · rejected (owner's call after the evidence)
+- *Tried:* a `level_balance` tool comparing each instrument family's loudness relative to the mix with a leave-one-out "typical" value from the other 6 songs (the open lever from D53).
+- *Smoke run 3:* still 4/6, but the gain task got worse (repair 0.667 → 0.333). The agent used the tool as intended and stopped short of the "typical" value, yet still overshot, because this song's clean bass sits 11.8 LU under the mix against a typical −6.0 ± 2.4.
+- *Offline check over all 31 song/family pairs:*
+  - "Typical" is a median 1.8 dB and up to 7.3 dB away from the true clean level.
+  - Aiming at it would pass 16% of 3 dB gain faults, 55% of 6 dB faults and 74% of 10 dB faults.
+  - 4 of 31 clean family levels already read as outliers (|z| > 2), a false-alarm risk on control tasks.
+- *Decision:* removed completely, including the tool, the skill text and the target fields. With only 6 reference songs, a level reference is weak and sometimes misleading evidence. Revisit only if the song pool grows substantially. Write-up: `results/smoke-3.md`.
+- *Consequence:* gain faults, especially small ones, stay a judgement call based on peer stems. That is an honest limitation of "restore the intended balance" without a reference.
