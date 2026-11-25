@@ -277,3 +277,18 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
   - `zosimix\runs` was added to the forbidden input strings.
 - *Checked:* the smoke run 1 transcripts contain 42 tool results and produce no flags under the new scan. The scan also reads Claude Code's real stream-json format.
 - *Still detection, not prevention, for `plain`.* A script that reads a results file and prints only a stem name would avoid both scans. Real prevention needs a filesystem sandbox, for example running the baseline as a separate Windows user with no access to the repo or `runs\`. That is deferred until the plain baseline shows any flags or suspicious scores. The `zosimix` configuration is unaffected: it has no file tools at all.
+
+## Day 8: diagnosis skill
+
+**D52 — The diagnosis skill: how it's delivered and what it may contain** · 2026-11-25 · accepted
+- *Where it lives:* `skills/zosimix-diagnosis/SKILL.md`, in Claude Code's skill format, so anyone using the MCP server interactively can drop it into `.claude/skills/`.
+- *How evals get it:* eval runs turn every built-in tool off (`--tools ""`), so the agent has no Skill tool to load a skill when it needs one. Instead, the runner appends the skill's body to the system prompt with `--append-system-prompt-file`. A probe run confirmed that the CLI applies it. A file in the system prompt is always present and costs the same on every run, which also makes the ablation clean.
+- *Configurations:* `zosimix` is the full layer (tools, verification and skill). `zosimix-noskill` is the ablation, the same setup smoke run 1 used under the name `zosimix`. `plain` is unchanged.
+- *Content rule:* the skill may contain only general mixing knowledge and procedure: no song ids, no dataset stem names, no severities, and nothing about how tasks are generated (for example, not "there is exactly one fault"). A test enforces the names part. *Why:* the skill is tuned on the smoke set (the development set), and the full set is the test set. Both use the same 7 songs, so anything song-specific in the skill would inflate the full results.
+- *Overlap:* three full tasks repeat a smoke task (same song, fault, stem and size): `full-005`, `full-015` and `full-029`. Full-set reports will give the pass rate with and without them.
+- *Seen in passing:* the CLI has a `--restricted` mode that confines the file tools to the working directory. It doesn't stop Bash, but it is a cheap extra layer to add when the plain baseline is set up (see D51).
+
+**D53 — Smoke run 2 with the skill: 4/6 (was 3/6). Skill tuning on the smoke set stops here** · 2026-11-25 · accepted
+- *Result:* the pan task now passes (the centre convention plus the pan formula). The mud task fails without a false positive (no change made; before, a healthy guitar was EQ'd). The gain task is unchanged: +8 dB applied against a true −6 dB. Details are in `results/smoke-2.md`.
+- *Why stop:* six single runs can't separate the skill's effect from run-to-run noise, and more rounds would fit the wording to these six tasks (the smoke set is the development set; D52). The full run with repeats measures it properly.
+- *Open lever, not taken yet:* a data-derived "typical loudness relative to the mix" per instrument family, leave-one-out like the tonal target. Measured spreads across the 7 songs: bass ±3.0 dB, vocals ±1.9, guitars ±1.8, drums ±1.3. That is enough to help on 6 and 10 dB gain faults, not on 3 dB ones. It's a tool change and needs the owner's call.

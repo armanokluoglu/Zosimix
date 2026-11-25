@@ -101,3 +101,25 @@ def test_ordinary_tool_results_are_not_flagged(isolated, monkeypatch):
                                                        "mix_state": {}, "seen": "bass: -18.2 LUFS, severity looks mild"}))
     runner.run("t", ["zosimix"], 1, "sonnet", "r5")
     assert not results(isolated)[0]["integrity_flags"]
+
+
+def test_skill_goes_into_the_system_prompt_only_for_the_full_layer(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "_claude", lambda: "claude")
+    ws = tmp_path / "work" / "ws"
+    ws.mkdir(parents=True)
+    full = runner.build_command("zosimix", ws, "sonnet", "brief")
+    bare = runner.build_command("zosimix-noskill", ws, "sonnet", "brief")
+    assert "--append-system-prompt-file" in full and "--append-system-prompt-file" not in bare
+    skill = (tmp_path / "work" / "skill.md").read_text(encoding="utf-8")
+    assert skill.startswith("# Diagnosing") and "name: zosimix-diagnosis" not in skill
+    assert "--bare" not in full + bare
+
+
+def test_skill_contains_no_benchmark_specifics():
+    """The skill is tuned on the smoke set, so it must hold general mixing knowledge only:
+    no song ids, no dataset stem names and no task-generator internals (D52)."""
+    text = runner.skill_text().lower()
+    specifics = {s.song_id for s in list_songs()}
+    specifics |= {n.lower() for s in list_songs() for n in s.stem_paths if "_" in n}
+    specifics |= {"severity", "smoke-", "full-", "seed"}
+    assert not [w for w in specifics if w in text]

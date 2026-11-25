@@ -11,8 +11,9 @@ A run can be stopped at any time and resumed: finished tasks are skipped. If Cla
 a usage limit, the runner stops cleanly and says how to resume.
 
 Configurations:
-  zosimix   Claude Code + the Zosimix MCP server; all built-in tools disabled
-  plain     Claude Code with shell + file tools and Python audio libraries; no Zosimix tools
+  zosimix          Claude Code + the Zosimix MCP server + the diagnosis skill; built-in tools off
+  zosimix-noskill  the same without the skill (ablation; smoke run 1 used this setup)
+  plain            Claude Code with shell + file tools and Python audio libraries; no Zosimix tools
   (the third baseline, Claude Code + an existing FL Studio MCP, needs the FL engine: days 9-10)
 
 Usage:
@@ -41,6 +42,15 @@ RUNS = HOME / "runs"
 WORKSPACES = HOME / "ws"       # kept apart from RUNS, so no "../.." from a workspace leads to grades (D51)
 BASELINE_PY = HOME / "baseline-venv" / "Scripts" / "python.exe"
 TIMEOUT_S = 20 * 60
+SKILL_PATH = REPO / "skills" / "zosimix-diagnosis" / "SKILL.md"
+
+# Which parts of the Zosimix layer each configuration gets (D52). "zosimix" is the full layer;
+# the others switch one part off, so the difference measures what that part is worth.
+CONFIGS = {
+    "zosimix":         {"tools": "zosimix", "skill": True},
+    "zosimix-noskill": {"tools": "zosimix", "skill": False},
+    "plain":           {"tools": "plain", "skill": False},
+}
 
 # Strings that should never appear in an agent's tool calls: they point at answers (D25, D51).
 FORBIDDEN = [str(REPO).lower(), str(REPO).lower().replace("\\", "/"), "groundtruth", "tasks\\smoke.json",
@@ -89,22 +99,35 @@ def _claude() -> str:
     return exe
 
 
+def skill_text() -> str:
+    """The diagnosis skill without its frontmatter (the name/description header)."""
+    text = SKILL_PATH.read_text(encoding="utf-8")
+    if text.startswith("---"):
+        text = text.split("---", 2)[2]
+    return text.strip() + "\n"
+
+
 def build_command(config: str, workspace: Path, model: str, prompt: str) -> list[str]:
     # Never --bare: it switches from the Pro login to API-key billing (D07). User, project and
     # local settings are skipped so personal hooks, plugins and memory can't leak into evals.
     common = ["-p", prompt, "--model", model, "--permission-mode", "dontAsk", "--setting-sources", "",
               "--no-session-persistence", "--output-format", "stream-json", "--verbose", "--strict-mcp-config"]
-    if config == "zosimix":
-        mcp = {"mcpServers": {"zosimix": {"command": sys.executable,
-                                          "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace)]}}}
-        mcp_path = workspace.parent / "mcp.json"
-        mcp_path.write_text(json.dumps(mcp), encoding="utf-8")
-        return [_claude(), *common, "--mcp-config", str(mcp_path), "--tools", "",
-                "--allowedTools", "mcp__zosimix__*"]
-    if config == "plain":
+    setup = CONFIGS[config]
+    if setup["tools"] == "plain":
         tools = "Bash,Read,Write,Edit,Glob,Grep"
         return [_claude(), *common, "--tools", tools, "--allowedTools", tools]
-    raise ValueError(config)
+    mcp = {"mcpServers": {"zosimix": {"command": sys.executable,
+                                      "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace)]}}}
+    mcp_path = workspace.parent / "mcp.json"            # beside the workspace, not in it
+    mcp_path.write_text(json.dumps(mcp), encoding="utf-8")
+    cmd = [_claude(), *common, "--mcp-config", str(mcp_path), "--tools", "", "--allowedTools", "mcp__zosimix__*"]
+    if setup["skill"]:
+        # Built-in tools are off (--tools ""), so the agent couldn't load a skill on demand.
+        # The playbook goes into the system prompt instead, always present (D52).
+        skill_path = workspace.parent / "skill.md"
+        skill_path.write_text(skill_text(), encoding="utf-8")
+        cmd += ["--append-system-prompt-file", str(skill_path)]
+    return cmd
 
 
 def _result_text(content) -> str:
@@ -167,7 +190,7 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     tasks.materialize(spec, workspace, target=targets.target_for(spec.song_id, profiles))
     (workspace / "output").mkdir(exist_ok=True)
     brief = spec.brief
-    prompt = (ZOSIMIX_PROMPT.format(brief=brief) if config == "zosimix"
+    prompt = (ZOSIMIX_PROMPT.format(brief=brief) if CONFIGS[config]["tools"] == "zosimix"
               else PLAIN_PROMPT.format(brief=brief, python=BASELINE_PY))
     transcript = run_dir / "transcripts" / f"{spec.task_id}-{config}-{repeat}.jsonl"
     transcript.parent.mkdir(parents=True, exist_ok=True)
@@ -281,7 +304,7 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--set", required=True)
-    r.add_argument("--config", action="append", choices=["zosimix", "plain"], required=True)
+    r.add_argument("--config", action="append", choices=list(CONFIGS), required=True)
     r.add_argument("--repeats", type=int, default=1)
     r.add_argument("--model", default="sonnet")
     r.add_argument("--run", dest="run_id", help="resume this run id")
