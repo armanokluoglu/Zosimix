@@ -2,7 +2,8 @@
 usage limits (DESIGN.md §4.6-4.8, D22, D25, D26).
 
 For every (task, configuration, repeat):
-  1. build a fresh workspace OUTSIDE the repo (the agent must never see task specs)
+  1. build a fresh workspace OUTSIDE the repo and away from the run's results (the agent
+     must never see task specs or grades)
   2. launch `claude -p` in it with only that configuration's tools
   3. grade the answer immediately and append one line to results.jsonl
   4. delete the workspace audio (transcript and answer files are kept)
@@ -25,6 +26,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -36,12 +38,19 @@ from zosimix import graders, targets, tasks
 REPO = Path(__file__).resolve().parents[2]
 HOME = Path(os.environ.get("ZOSIMIX_HOME", Path(os.environ.get("LOCALAPPDATA", Path.home())) / "zosimix"))
 RUNS = HOME / "runs"
+WORKSPACES = HOME / "ws"       # kept apart from RUNS, so no "../.." from a workspace leads to grades (D51)
 BASELINE_PY = HOME / "baseline-venv" / "Scripts" / "python.exe"
 TIMEOUT_S = 20 * 60
 
-# Strings that should never appear in an agent's tool calls: they point at answers (D25).
+# Strings that should never appear in an agent's tool calls: they point at answers (D25, D51).
 FORBIDDEN = [str(REPO).lower(), str(REPO).lower().replace("\\", "/"), "groundtruth", "tasks\\smoke.json",
-             "tasks/smoke.json", "tasks\\full.json", "tasks/full.json", "results.jsonl"]
+             "tasks/smoke.json", "tasks\\full.json", "tasks/full.json", "results.jsonl",
+             "zosimix\\runs", "zosimix/runs"]
+
+# Keys that only exist in ground-truth files (task specs, results.jsonl). Nothing the agent is
+# given contains them, so seeing one in a tool *result* means answers reached the agent,
+# however the path was spelled (D51).
+GROUND_TRUTH_MARKERS = ['"expected_verdict"', '"hint_level"', '"severity":']
 
 ZOSIMIX_PROMPT = """{brief}
 
@@ -98,20 +107,38 @@ def build_command(config: str, workspace: Path, model: str, prompt: str) -> list
     raise ValueError(config)
 
 
+def _result_text(content) -> str:
+    """A tool result's content is either a string or a list of {"type": "text", "text": ...}."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
+    return ""
+
+
 def integrity_flags(transcript: Path) -> list[str]:
-    """Any tool call whose input mentions a forbidden path (answers, the repo, other runs)."""
+    """Two checks over the transcript (D25, D51):
+      - a tool call whose input mentions a forbidden path (answers, the repo, other runs)
+      - a tool result containing a ground-truth key, i.e. answers actually reached the agent.
+    The second one catches leaks the first misses, like relative paths or wildcards."""
     flags = []
     for line in transcript.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             msg = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if msg.get("type") != "assistant":
+        content = msg.get("message", {}).get("content", [])
+        if not isinstance(content, list):
             continue
-        for block in msg.get("message", {}).get("content", []):
-            if block.get("type") == "tool_use":
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if msg.get("type") == "assistant" and block.get("type") == "tool_use":
                 text = json.dumps(block.get("input", {})).lower().replace("\\\\", "\\")
                 flags += [f"{block.get('name')}: {f}" for f in FORBIDDEN if f in text]
+            elif msg.get("type") == "user" and block.get("type") == "tool_result":
+                text = _result_text(block.get("content"))
+                flags += [f"tool result: {m}" for m in GROUND_TRUTH_MARKERS if m in text]
     return flags
 
 
@@ -133,8 +160,9 @@ def _looks_like_usage_limit(result: dict, stderr: str) -> bool:
 
 def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model: str,
             profiles: dict) -> dict:
-    work = run_dir / "work" / f"{spec.task_id}-{config}-{repeat}"
-    shutil.rmtree(work, ignore_errors=True)
+    # A random folder away from run_dir: the path says nothing about the task, and the
+    # results, transcripts and other runs are not one "../" away (D51).
+    work = WORKSPACES / secrets.token_hex(8)
     workspace = work / "ws"
     tasks.materialize(spec, workspace, target=targets.target_for(spec.song_id, profiles))
     (workspace / "output").mkdir(exist_ok=True)

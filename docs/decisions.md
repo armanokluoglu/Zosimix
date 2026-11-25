@@ -268,3 +268,12 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - *Mix state:* `MixState.from_dict` checks the shape and `validate()` checks types. Numbers must be numbers (not bools), polarity must be a real boolean, and EQ must be a list of band objects. Wrong shapes or types raise `TypeError`; out-of-range values raise `ValueError`. Both carry a readable message. The grader already graded either error as "no changes" and records the reason in `invalid_mix_state`.
 - *Diagnosis:* `graders.read_diagnosis` normalizes the answer into (verdict, findings, problem) and never raises. Anything that isn't a string becomes `None`. A finding that isn't an object, or a `findings` value that isn't a list, counts as one **malformed finding** that matches nothing. A badly formatted false alarm therefore still fails a control task, and a single finding object without the list around it gets no credit. The reason is recorded in `invalid_diagnosis`.
 - *Effect on existing results:* none. Smoke run 1 answers were all well-formed.
+
+**D51 — Tighter isolation for the plain baseline (refines D25 and D48)** · 2026-11-25 · accepted
+- *Problem:* the plain configuration has shell and file tools, so the only protection was scanning tool-call **inputs** for forbidden strings. The workspace sat inside the run folder, so `cat ../../../results*` would reach `results.jsonl`. That file holds earlier tasks' grades, and with repeats, this task's own answer. A path like `~/Desktop/Harness` also didn't match the literal repo path.
+- *Now:*
+  - **Workspaces live in `%LOCALAPPDATA%\zosimix\ws\<random hex>`**, apart from `runs\`. Their names say nothing about the task.
+  - **Tool results are scanned too.** Any result containing a key that exists only in ground-truth files (`"expected_verdict"`, `"hint_level"`, `"severity":`) is flagged. This catches a leak however the path was spelled.
+  - `zosimix\runs` was added to the forbidden input strings.
+- *Checked:* the smoke run 1 transcripts contain 42 tool results and produce no flags under the new scan. The scan also reads Claude Code's real stream-json format.
+- *Still detection, not prevention, for `plain`.* A script that reads a results file and prints only a stem name would avoid both scans. Real prevention needs a filesystem sandbox, for example running the baseline as a separate Windows user with no access to the repo or `runs\`. That is deferred until the plain baseline shows any flags or suspicious scores. The `zosimix` configuration is unaffected: it has no file tools at all.

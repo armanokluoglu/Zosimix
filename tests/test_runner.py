@@ -27,6 +27,8 @@ answer = json.loads(sys.argv[1])
 (out / "mix_state.json").write_text(json.dumps(answer["mix_state"]))
 print(json.dumps({"type": "assistant", "message": {"content": [
     {"type": "tool_use", "name": "Read", "input": {"file_path": answer.get("peek", "stems/bass.wav")}}]}}))
+print(json.dumps({"type": "user", "message": {"content": [
+    {"type": "tool_result", "content": [{"type": "text", "text": answer.get("seen", "RIFF....WAVE")}]}]}}))
 print(json.dumps({"type": "result", "num_turns": 3, "is_error": False, "total_cost_usd": 0.0,
                   "usage": {"output_tokens": 42}}))
 """
@@ -35,6 +37,7 @@ print(json.dumps({"type": "result", "num_turns": 3, "is_error": False, "total_co
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(runner, "WORKSPACES", tmp_path / "ws")
     monkeypatch.setattr(tasks, "TASKS_DIR", tmp_path / "tasks")
     fault = faults.Fault("gain", "bass_bass_guitar", 1, {"gain_db": 6.0})
     tasks.save("t", 1, [tasks.TaskSpec("t-001", SONG, fault.to_dict(), "none", "")])
@@ -63,6 +66,8 @@ def test_perfect_fake_agent_passes_and_workspace_is_outside_the_repo(isolated, m
     row = results(isolated)[0]
     assert row["grade"]["pass"] and row["turns"] == 3 and not row["integrity_flags"]
     assert runner.REPO not in seen["workspace"].parents
+    assert runner.RUNS not in seen["workspace"].parents         # grades are not a "../" away
+    assert "t-001" not in str(seen["workspace"])               # the path says nothing about the task
     assert not seen["workspace"].exists()                      # audio cleaned up after grading
 
 
@@ -80,3 +85,19 @@ def test_peeking_at_the_repo_is_flagged(isolated, monkeypatch):
                                                        "mix_state": {}, "peek": peek}))
     runner.run("t", ["zosimix"], 1, "sonnet", "r3")
     assert results(isolated)[0]["integrity_flags"]
+
+
+def test_ground_truth_in_a_tool_result_is_flagged_however_it_was_reached(isolated, monkeypatch):
+    leaked = '{"task_id": "t-001", "fault": {"type": "gain", "stem": "bass", "severity": 1}, "hint_level": "none"}'
+    monkeypatch.setattr(runner, "build_command", fake({"diagnosis": {"verdict": "no_fault", "findings": []},
+                                                       "mix_state": {}, "peek": "../../*/res*", "seen": leaked}))
+    runner.run("t", ["zosimix"], 1, "sonnet", "r4")
+    flags = results(isolated)[0]["integrity_flags"]
+    assert flags and all(f.startswith("tool result") for f in flags)     # the path itself matched nothing
+
+
+def test_ordinary_tool_results_are_not_flagged(isolated, monkeypatch):
+    monkeypatch.setattr(runner, "build_command", fake({"diagnosis": {"verdict": "no_fault", "findings": []},
+                                                       "mix_state": {}, "seen": "bass: -18.2 LUFS, severity looks mild"}))
+    runner.run("t", ["zosimix"], 1, "sonnet", "r5")
+    assert not results(isolated)[0]["integrity_flags"]
