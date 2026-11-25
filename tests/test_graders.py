@@ -112,3 +112,33 @@ def test_polarity_only_accepts_stems_whose_flip_restores_low_end(songs_root):
     r = graders.grade(spec(fault), answer("fixed", "drums_kick", "polarity"),
                       {"drums_kick": {"polarity": True}}, songs_root)
     assert not r["detected"]                      # flipping the unrelated kick mic fixes nothing
+
+
+@pytest.mark.parametrize("bad_state", [
+    ["vox_lead", -6.0],                              # a list instead of an object
+    {"vox_lead": None},                              # settings missing
+    {"vox_lead": {"gain_db": "-6"}},                 # a number written as a string
+    {"vox_lead": {"eq": "cut 2k"}},                  # eq not a list of bands
+    {"vox_lead": {"volume": -6.0}},                  # unknown setting
+])
+def test_malformed_mix_state_is_graded_as_no_changes(songs_root, bad_state):
+    r = graders.grade(spec(GAIN), answer("fixed", "vox_lead", "gain"), bad_state, songs_root)
+    assert r["invalid_mix_state"] and not r["pass"] and r["repair"]["score"] == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("bad_diagnosis", [
+    ["fixed"],                                       # a list instead of an object
+    {"verdict": "fixed", "findings": {"stem": "vox_lead", "fault_type": "gain"}},   # one finding, not a list
+    {"verdict": "fixed", "findings": ["vox_lead gain"]},                            # finding as plain text
+    {"verdict": ["fixed"], "findings": [{"stem": ["vox_lead"], "fault_type": "gain"}]},
+])
+def test_malformed_diagnosis_is_graded_not_crashed(songs_root, bad_diagnosis):
+    state = MixState({"vox_lead": TrackState(gain_db=-6.0)}).to_dict()
+    r = graders.grade(spec(GAIN), bad_diagnosis, state, songs_root)
+    assert r["submitted"] and not r["detected"] and not r["pass"]
+
+
+def test_badly_formatted_false_alarm_still_fails_a_control(songs_root):
+    control = faults.Fault("control", None, 0)
+    r = graders.grade(spec(control), {"verdict": "no_fault", "findings": ["bass seems loud"]}, {}, songs_root)
+    assert r["invalid_diagnosis"] and not r["pass"]

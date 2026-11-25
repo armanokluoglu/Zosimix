@@ -104,6 +104,33 @@ def repair_score(fault: faults.Fault, clean: dict, broken: dict, processed: dict
             "score": round(_ratio(after, before), 3)}
 
 
+def read_diagnosis(diagnosis: object) -> tuple[str | None, list[dict], str | None]:
+    """Turn whatever the agent wrote into (verdict, findings, problem), never raising.
+
+    The plain baseline writes diagnosis.json by hand, so it can have any shape (D50).
+    Values that aren't strings become None. A malformed finding is kept as an empty
+    finding rather than dropped, so it still counts as a (false) finding: an agent
+    shouldn't pass a control task just because its false alarm was badly formatted."""
+    if not isinstance(diagnosis, dict):
+        return None, [], f"diagnosis must be an object, got {type(diagnosis).__name__}"
+
+    def text(value):
+        return value if isinstance(value, str) else None
+
+    problem = None
+    raw = diagnosis.get("findings") or []
+    if not isinstance(raw, list):                       # counted as one malformed finding
+        raw, problem = [None], "findings must be a list"
+    findings = []
+    for f in raw:
+        if isinstance(f, dict):
+            findings.append({"stem": text(f.get("stem")), "fault_type": text(f.get("fault_type"))})
+        else:
+            findings.append({"stem": None, "fault_type": None})
+            problem = problem or "every finding must be an object"
+    return text(diagnosis.get("verdict")), findings, problem
+
+
 def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_root=DATA_ROOT) -> dict:
     song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
     clean, sr, _ = song.load_clean_stems()
@@ -129,10 +156,10 @@ def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_
     # ---- detection
     expected = EXPECTED_VERDICT.get(fault.type, "fixed")
     accept = acceptable_stems(fault, broken, sr)
-    findings = diagnosis.get("findings", []) or []
-    hit = any(f.get("fault_type") == fault.type and f.get("stem") in accept for f in findings)
-    false_findings = [f for f in findings if not (f.get("fault_type") == fault.type and f.get("stem") in accept)]
-    detected = diagnosis.get("verdict") == expected and (hit if fault.type != "control" else not findings)
+    verdict, findings, result["invalid_diagnosis"] = read_diagnosis(diagnosis)
+    hit = any(f["fault_type"] == fault.type and f["stem"] in accept for f in findings)
+    false_findings = [f for f in findings if not (f["fault_type"] == fault.type and f["stem"] in accept)]
+    detected = verdict == expected and (hit if fault.type != "control" else not findings)
 
     # ---- collateral: every stem that was clean must still be (nearly) the same
     others = [n for n in clean if n not in accept]
@@ -141,7 +168,7 @@ def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_
     mix_after = engine.render()
     result.update({
         "submitted": True,
-        "verdict": diagnosis.get("verdict"),
+        "verdict": verdict,
         "expected_verdict": expected,
         "detected": detected,
         "false_findings": len(false_findings),

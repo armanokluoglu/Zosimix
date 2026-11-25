@@ -260,3 +260,11 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
 - The rotation index was `(tasks so far + attempts // 20)`. It was meant to move past a fault type that keeps drawing duplicates, but `attempts` also counts successful draws, so the rotation slipped by one every 20 loop passes even when nothing went wrong. In the old `full` set, task 17 skipped `pan`.
 - *Now:* a `turn` counter advances after each new task. A type that draws `MAX_DUPLICATE_DRAWS` (20) duplicates in a row gives its turn to the next type. The overall `50 × n` attempt limit stays.
 - *Effect:* `smoke` regenerates byte-for-byte identical, so smoke run 1 stays comparable. `full` was regenerated with the same seed (42). No full run had used it yet. It still has 30 distinct tasks: types 5/5/4/4/4/4/4, 4–5 per song, every fixable type covering all three sizes, and hints at 14 vague / 16 none.
+
+## Walkthrough fixes
+
+**D50 — Malformed answers are graded, never crash the run** · 2026-11-25 · accepted
+- *Problem:* the plain baseline writes `mix_state.json` and `diagnosis.json` by hand. Valid JSON in the wrong shape (a list at the top, `null` for a track, findings as text) raised `AttributeError` inside the grader, which would stop the whole eval run. Also, `"polarity": "false"` (a string) was accepted as true, because a non-empty string counts as true in Python.
+- *Mix state:* `MixState.from_dict` checks the shape and `validate()` checks types. Numbers must be numbers (not bools), polarity must be a real boolean, and EQ must be a list of band objects. Wrong shapes or types raise `TypeError`; out-of-range values raise `ValueError`. Both carry a readable message. The grader already graded either error as "no changes" and records the reason in `invalid_mix_state`.
+- *Diagnosis:* `graders.read_diagnosis` normalizes the answer into (verdict, findings, problem) and never raises. Anything that isn't a string becomes `None`. A finding that isn't an object, or a `findings` value that isn't a list, counts as one **malformed finding** that matches nothing. A badly formatted false alarm therefore still fails a control task, and a single finding object without the list around it gets no credit. The reason is recorded in `invalid_diagnosis`.
+- *Effect on existing results:* none. Smoke run 1 answers were all well-formed.

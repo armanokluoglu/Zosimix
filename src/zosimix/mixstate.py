@@ -71,10 +71,23 @@ class MixState:
 
     @classmethod
     def from_dict(cls, data: dict) -> MixState:
+        """Build and validate a state from JSON-like data.
+
+        The data may come from an agent's hand-written mix_state.json (plain baseline), so
+        every problem raises with a readable message: TypeError for a wrong shape, type or
+        unknown key, ValueError for a value out of range. The grader catches both and grades
+        the answer as "no changes" (D50)."""
+        if not isinstance(data, dict):
+            raise TypeError(f"a mix state must be an object of stem name -> settings, got {type(data).__name__}")
         tracks = {}
         for name, t in data.items():
+            if not isinstance(t, dict):
+                raise TypeError(f"{name}: settings must be an object, got {type(t).__name__}")
             t = dict(t)
-            t["eq"] = [EqBand(**b) for b in t.get("eq", [])]
+            eq = t.get("eq", [])
+            if not isinstance(eq, list) or not all(isinstance(b, dict) for b in eq):
+                raise TypeError(f"{name}.eq must be a list of band objects")
+            t["eq"] = [EqBand(**b) for b in eq]
             tracks[name] = TrackState(**t)
         state = cls(tracks)
         state.validate()
@@ -83,13 +96,18 @@ class MixState:
     def validate(self) -> None:
         """Raise ValueError with a readable message for anything outside the action space."""
         def check(name: str, value: float, bounds: tuple[float, float]) -> None:
-            if not bounds[0] <= value <= bounds[1]:
+            # bool is a subclass of int in Python, so rule it out explicitly
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(f"{name}={value!r} is not a number")
+            if not bounds[0] <= value <= bounds[1]:             # also rejects NaN
                 raise ValueError(f"{name}={value} is outside the allowed range {bounds}")
 
         for stem, t in self.tracks.items():
             check(f"{stem}.gain_db", t.gain_db, GAIN_DB)
             check(f"{stem}.pan", t.pan, PAN)
             check(f"{stem}.width", t.width, WIDTH)
+            if not isinstance(t.polarity, bool):                # the string "false" would be truthy
+                raise TypeError(f"{stem}.polarity={t.polarity!r} must be true or false")
             if len(t.eq) > MAX_EQ_BANDS:
                 raise ValueError(f"{stem}: {len(t.eq)} EQ bands, the maximum is {MAX_EQ_BANDS}")
             for i, b in enumerate(t.eq):
