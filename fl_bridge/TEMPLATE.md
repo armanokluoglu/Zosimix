@@ -40,4 +40,5 @@ Then tell Claude it's done. Leave FL open with this project: the next step reads
 ## If the bridge doesn't answer
 Open **Options → MIDI settings**.
 - **Input:** `Zosimix In` is enabled, its controller type is **Zosimix Bridge (user)**, and its port number is set (for example 200).
-- **Output:** `Zosimix Out` has that **same** port number. `Zosimix In` in the output list must have **no** port number. If it has one, FL sends replies back into its own input instead of to Claude (D56).
+- **Output:** FL gives the `Zosimix In` output the same port number by itself and replies there. That is fine: the harness listens on both ports (D58). You can't remove it; FL puts it back at every start.
+- The harness checks these settings before it starts FL (`zosimix.fl.session.check_midi_settings`) and says what is wrong.

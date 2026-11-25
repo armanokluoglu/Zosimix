@@ -11,7 +11,7 @@ Two quirks found in the spike shape this API:
     nearest step, so callers compare stepped values with a looser tolerance.
 
 Needs the "fl" extra (mido + python-rtmidi) and loopMIDI with ports "Zosimix In" and
-"Zosimix Out".
+"Zosimix Out". Requests go out on "Zosimix In"; replies are read from both ports (D58).
 """
 
 from __future__ import annotations
@@ -35,7 +35,10 @@ class Bridge:
         self._mido = mido
         self.timeout_s = timeout_s
         self.out = mido.open_output(self._find(mido.get_output_names(), IN_PORT))
-        self.inp = mido.open_input(self._find(mido.get_input_names(), OUT_PORT))
+        # FL links its script input to the output of the same name, so replies normally come
+        # back on "Zosimix In" (a loopMIDI port carries both ways). Listen on "Zosimix Out"
+        # as well, in case FL is set up to reply there (D58).
+        self.inputs = [mido.open_input(self._find(mido.get_input_names(), name)) for name in (IN_PORT, OUT_PORT)]
         self.next_id = 0
         self._handshake()
 
@@ -70,7 +73,8 @@ class Bridge:
 
     def close(self) -> None:
         self.out.close()
-        self.inp.close()
+        for port in self.inputs:
+            port.close()
 
     def __enter__(self) -> Self:
         return self
@@ -86,9 +90,9 @@ class Bridge:
         self.out.send(self._mido.Message("sysex", data=REQUEST + list(text.encode("ascii"))))
         deadline = time.perf_counter() + self.timeout_s
         while time.perf_counter() < deadline:
-            for msg in self.inp.iter_pending():
+            for msg in (m for port in self.inputs for m in port.iter_pending()):
                 if msg.type != "sysex" or list(msg.data[:2]) != REPLY:
-                    continue
+                    continue                  # includes our own requests echoed by loopMIDI
                 parts = bytes(msg.data[2:]).decode("ascii", "replace").split()
                 if parts and parts[0] == req_id:
                     if len(parts) < 2 or parts[1] != "ok":

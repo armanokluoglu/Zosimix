@@ -328,3 +328,40 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - Parameters 21–27 are the band types, in steps of 1/7: Disabled, Low pass, Band pass, High pass, Notch, Low shelf, Peaking, High shelf.
   - Parameters 28–34 are the band orders (slopes), in steps of 1/6: Steep 8, Steep 6, Steep 4, 2 (default), Gentle 4, Gentle 6, Gentle 8.
 - *Defaults:* band 1 is a low shelf, bands 2–6 are peaking, and band 7 is a high shelf, all at 0 dB. A band whose type is "Disabled" does nothing, which gives the engine a clean "unused band".
+
+**D58 — Bridge replies come back on "Zosimix In"; supersedes D56's FL-side fix** · 2026-11-25 · accepted
+- *Found:* FL links a script's input to the MIDI output **of the same name**, and restores that link every time it starts. Clearing the port on the "Zosimix In" output by hand, or even in the registry with FL closed, is undone at the next launch. With D56's separate reply header that is harmless: the script ignores its own looped-back replies, and loopMIDI delivers them to us on "Zosimix In" too.
+- *Change:* the client sends on "Zosimix In" and reads replies from both "Zosimix In" and "Zosimix Out". It ignores everything that isn't a reply, including its own requests echoed by loopMIDI. D56's instruction to give only "Zosimix Out" the port is withdrawn.
+- *Preflight:* before launching FL, `session.check_midi_settings` reads FL's MIDI settings from the registry. It requires the "Zosimix In" input to be enabled with the Zosimix Bridge script and a port number, and some Zosimix output to share that port. It only reads; Zosimix never changes FL's settings itself. (While diagnosing this, the port on the "Zosimix In" output was cleared once in the registry, as the owner had asked in FL's own dialog. FL restored it at its next start.)
+
+**D59 — The FL cycle, and what it costs** · 2026-11-25 · accepted
+- *Cycle (`zosimix.fl.session`):*
+  1. Copy the template into `C:\zosimix\fl\work`.
+  2. Launch FL on the copy.
+  3. Wait until the bridge answers and insert 1 holds Parametric EQ 2.
+  4. Set values over the bridge.
+  5. Switch to song mode.
+  6. Save.
+  7. Close FL gracefully.
+  8. Render the saved copy with `FL64.exe /R /Ewav /O<folder>`.
+- *Song mode is required:* the command-line render plays the mode the project was saved in, and in pattern mode that is one empty bar (1.71 s at 140 BPM).
+- *Safety:* refuse to start while any FL64.exe is running, because FL is single-instance and would hand our project to the owner's window. Only ever stop the process IDs we started; close gracefully first, and force only our own process as a fallback.
+- *Cost, measured:* about 2 s to launch and connect, 1 s to save, 0.5 s to close, and 3 s to render a 10 s project. A 60 s calibration project takes about 9 s from start to finish. The 80 s from the spike (D35) was the heavy demo song, not FL startup. That makes mid-run FL renders much cheaper than D36 assumed. D36 stays as it is until real songs are timed.
+- *Render facts:* 24-bit, 44.1 kHz, no latency (lag 0 samples). A clip takes the length of whatever WAV is in its slot, so the render is as long as the longest stem.
+
+**D60 — Audio calibration: what FL's controls do** · 2026-11-25 · findings accepted; engine changes pending the owner's call
+- *Method (`zosimix.fl.calibrate`):* each slot plays its own 2 s burst of stereo noise in its own time window, and insert k gets setting k. So one render measures 24 settings. Per window we fit a 2×2 matrix (out = in @ M) and the magnitude response from 20 Hz to 20 kHz. The data is in `fl_bridge/calibration/audio-{mixer,pan,eq}.json`. Matrix residuals of about −92 dB are 24-bit rounding.
+- *Exact matches with the offline engine:*
+  - Unity is 0.9998 (−0.002 dB).
+  - The fader's displayed dB is the real gain (−12 → 0.2512, +3 → 1.4123, maximum +5.59 dB).
+  - PEQ2's main level is exact (+6 → +6.00 dB).
+  - Polarity is an exact sign flip.
+  - **Channel-rack pan is exactly `audio.pan_gains`**, a constant-power balance with no crossfeed (all 7 positions within 0.01 dB).
+- *Mixer pan is not a balance:* it moves one channel into the other. For p ≤ 0: L→L = (√2·cos θ + cos(pπ/2))/2, R→L = (√2·cos θ − cos(pπ/2))/2, R→R = √2·sin θ, with θ = (p+1)·π/4; p > 0 is the mirror image. The formula fits 8 positions to within 0.0002. **Decision:** the FL engine realizes the mix state's pan with the channel-rack pan, and leaves the mixer pan at centre.
+- *Stereo separation is pure mid/side scaling,* the offline engine's width:
+  - For sep ≤ 0, width = 1 − sep (exact).
+  - For sep > 0, it is a smooth curve with no obvious formula (0.125 → 0.944, 0.5 → 0.691, 0.875 → 0.228, 1 → 0).
+  - FL moves the knob in steps of 1/64, so the engine uses a measured table of all steps.
+- *Order matters for one pair:* FL applies the channel pan *before* the mixer insert (EQ, separation, fader). The offline engine applies width before pan, and the two don't commute. Polarity, EQ and gain commute with everything.
+- *PEQ2 peaks and shelves are analog-matched:* one Q per width fits the ideal analog shape at 100 Hz, 1 kHz and 8 kHz (Q 0.664–0.692 at the default 39%, within 0.37 dB). Pedalboard's filters need a different Q at 8 kHz (0.40) than at 1 kHz (0.66) for the same setting, and still miss by up to 1.7 dB. Below about 4 kHz, pedalboard matches within 0.03–0.3 dB. Width maps to Q smoothly (peaks: 5% → 4.2, 20% → 1.3, 39% → 0.66, 100% → 0.16). Shelves follow their own curve.
+- *PEQ2 high-pass and low-pass are resonant:* order "2" is 12 dB/octave, and the width knob sets the resonance (+4.5 dB at the cutoff by default, +10.9 dB at 20%, −11.7 dB at 70%). The offline engine's high-pass and low-pass are first order (6 dB/octave) and ignore Q. The other order settings need more measurement.

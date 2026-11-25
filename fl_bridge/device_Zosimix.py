@@ -21,6 +21,7 @@ Indices follow FL's API: mixer track 0 is Master, 1.. are inserts; slot 0 is the
 first effect slot; parameter values are normalized floats in 0..1.
 """
 
+import channels
 import device
 import general
 import midi
@@ -91,6 +92,20 @@ def _cmd_set_name(args):
     return [mixer.getTrackName(int(args[0])).replace(" ", "_") or "-"]
 
 
+def _cmd_chan_name(args):
+    # Channel rack index (0-based). In the template, channel k-1 is slot k's audio clip.
+    return [channels.getChannelName(int(args[0])).replace(" ", "_") or "-"]
+
+
+def _cmd_get_chan_pan(args):
+    return [repr(channels.getChannelPan(int(args[0])))]
+
+
+def _cmd_set_chan_pan(args):
+    channels.setChannelPan(int(args[0]), float(args[1]))
+    return [repr(channels.getChannelPan(int(args[0])))]
+
+
 def _cmd_plugin_name(args):
     track, slot = int(args[0]), int(args[1])
     if not plugins.isValid(track, slot):
@@ -119,6 +134,14 @@ def _cmd_set_param(args):
     return [repr(plugins.getParamValue(param, track, slot))]
 
 
+def _cmd_song_mode(args):
+    # The command-line render plays whatever mode the project was saved in. In pattern
+    # mode that is one empty bar, so switch to song mode (setLoopMode toggles).
+    if transport.getLoopMode() == 0:
+        transport.setLoopMode()
+    return [str(transport.getLoopMode())]
+
+
 def _cmd_save(args):
     transport.globalTransport(midi.FPT_Save, 1)
     return ["saved"]
@@ -137,10 +160,14 @@ COMMANDS = {
     "set_sep": _cmd_set_sep,
     "get_name": _cmd_get_name,
     "set_name": _cmd_set_name,
+    "chan_name": _cmd_chan_name,
+    "get_chan_pan": _cmd_get_chan_pan,
+    "set_chan_pan": _cmd_set_chan_pan,
     "plugin_name": _cmd_plugin_name,
     "param_count": _cmd_param_count,
     "param_info": _cmd_param_info,
     "set_param": _cmd_set_param,
+    "song_mode": _cmd_song_mode,
     "save": _cmd_save,
 }
 
