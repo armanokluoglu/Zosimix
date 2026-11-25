@@ -84,6 +84,18 @@ def test_width_zero_makes_a_track_mono(stems):
     np.testing.assert_allclose(out[:, 0], out[:, 1])
 
 
+def test_pan_comes_before_width_like_in_fl(stems):
+    """FL applies the channel-rack pan before the mixer's stereo separation (D61).
+
+    Pan then width 0 gives a centred mono track (left == right). The other order would
+    give a mono signal that is still panned (left != right).
+    """
+    engine = OfflineEngine(stems, SR)
+    engine.set_state(MixState({"guitar_wide": TrackState(pan=0.5, width=0.0)}))
+    out = engine.render_stems()["guitar_wide"]
+    np.testing.assert_allclose(out[:, 0], out[:, 1])
+
+
 def test_only_changed_tracks_are_re_rendered(stems):
     engine = OfflineEngine(stems, SR)
     engine.set_state(MixState({"bass": TrackState(gain_db=-3.0)}))

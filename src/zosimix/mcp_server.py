@@ -96,7 +96,8 @@ def build_server(session: MixSession) -> MCPServer:
                     q: float = 1.0) -> str:
         """Set EQ band 1-7 of a track (Parametric EQ 2 style). type: peaking, low_shelf,
         high_shelf, highpass, lowpass. gain -18..+18 dB, q 0.1..18 (higher = narrower).
-        Pending until commit_changes."""
+        highpass/lowpass are 12 dB/octave and ignore gain; their q sets the bump at the
+        cutoff (0.707 = no bump). Pending until commit_changes."""
         return session.set_eq_band(stem, band, type, freq_hz, gain_db, q)
 
     @server.tool()

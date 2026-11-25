@@ -74,13 +74,16 @@ You cannot listen, so analyse them with code. A Python with numpy, scipy, soundf
 pedalboard is at: {python}
 
 Express your fix as a mix state, which is rendered as follows for each track:
-polarity (invert) -> EQ bands -> stereo width -> pan -> gain, then all tracks are summed.
+polarity (invert) -> EQ bands -> pan -> stereo width -> gain, then all tracks are summed.
   gain_db: -60..18 (0 = unchanged)
   pan: -1..1, a balance control with gains L = sqrt(2)*cos((pan+1)*pi/4), R = sqrt(2)*sin((pan+1)*pi/4)
   polarity: true inverts the track
   width: 0 mono, 1 unchanged, 2 double side signal (mid/side)
   eq: up to 7 bands {{"type": peaking|low_shelf|high_shelf|highpass|lowpass, "freq_hz", "gain_db", "q"}}
-      (pedalboard PeakFilter / LowShelfFilter / HighShelfFilter / HighpassFilter / LowpassFilter)
+      Second-order filters with the Audio EQ Cookbook (RBJ) meaning of gain and q, matched to the
+      analog shape up to 20 kHz. Below about 4 kHz they equal pedalboard's PeakFilter, LowShelfFilter
+      and HighShelfFilter. highpass/lowpass are 12 dB/octave; their q sets the bump at the cutoff
+      (0.707 = none) and their gain_db is ignored.
 Tracks you leave out stay unchanged.
 
 When you are done, write exactly these two files:

@@ -16,9 +16,9 @@ import random
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
-from pedalboard import LowpassFilter, PeakFilter
+from pedalboard import LowpassFilter
 
-from zosimix import audio
+from zosimix import audio, eq
 from zosimix.songs import family_of
 
 FAULT_TYPES = ["gain", "polarity", "resonance", "mud", "pan", "clipping", "control"]
@@ -153,9 +153,8 @@ def choose(fault_type: str, severity: int, stems: dict[str, np.ndarray], sr: int
 # ---------------------------------------------------------------- applying it
 
 def _peak_filter(a: np.ndarray, sr: int, freq: float, gain_db: float, q: float) -> np.ndarray:
-    board = PeakFilter(cutoff_frequency_hz=freq, gain_db=gain_db, q=q)
-    out = board(a.T.astype(np.float32), sr)        # pedalboard wants (channels, frames)
-    return out.T.astype(np.float64)
+    """The same peaking filter the engines use (D61), so an exact counter-cut can undo it."""
+    return eq.apply(a, [("peaking", freq, gain_db, q)], sr)
 
 
 def apply(fault: Fault, a: np.ndarray, sr: int) -> np.ndarray:

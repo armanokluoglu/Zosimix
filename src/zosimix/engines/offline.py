@@ -1,8 +1,11 @@
 """The offline engine: renders stems + MixState in pure Python (DESIGN.md §3.3, D11).
 
-Per track, in this order (all steps are linear, so the order only matters numerically):
-    polarity -> EQ bands -> stereo width -> pan (balance) -> gain
+Per track, in FL's order (D61):
+    polarity -> EQ bands -> pan (balance) -> stereo width -> gain
 then every track is summed into the stereo mix. There is no master processing.
+Polarity, EQ and gain treat both channels alike, so their position doesn't matter. Pan
+and width don't commute: FL applies the channel-rack pan before the mixer insert's
+stereo separation, so pan comes first here too.
 
 Rendering is fast because processed stems are cached: changing one track's settings only
 re-renders that track. A full song with no EQ renders in well under a second.
@@ -15,46 +18,28 @@ import json
 from pathlib import Path
 
 import numpy as np
-from pedalboard import HighpassFilter, HighShelfFilter, LowpassFilter, LowShelfFilter, PeakFilter, Pedalboard
 
-from zosimix import audio
+from zosimix import audio, eq
 from zosimix.engines.base import MixEngine
-from zosimix.mixstate import EqBand, MixState, TrackState
-
-
-def _eq_plugin(band: EqBand):
-    if band.type == "peaking":
-        return PeakFilter(cutoff_frequency_hz=band.freq_hz, gain_db=band.gain_db, q=band.q)
-    if band.type == "low_shelf":
-        return LowShelfFilter(cutoff_frequency_hz=band.freq_hz, gain_db=band.gain_db, q=band.q)
-    if band.type == "high_shelf":
-        return HighShelfFilter(cutoff_frequency_hz=band.freq_hz, gain_db=band.gain_db, q=band.q)
-    # pedalboard's high/low-pass filters are first order (6 dB/octave). PEQ2's slope is
-    # configurable; matching it is a calibration task for the FL engine (D43).
-    if band.type == "highpass":
-        return HighpassFilter(cutoff_frequency_hz=band.freq_hz)
-    if band.type == "lowpass":
-        return LowpassFilter(cutoff_frequency_hz=band.freq_hz)
-    raise ValueError(band.type)
+from zosimix.mixstate import MixState, TrackState
 
 
 def process_track(stem: np.ndarray, t: TrackState, sr: int) -> np.ndarray:
     """Apply one track's settings to one stereo stem. Returns a new (frames, 2) array."""
     x = -stem if t.polarity else stem.copy()
 
-    active = [b for b in t.eq if not b.is_neutral()]
+    active = [(b.type, b.freq_hz, b.gain_db, b.q) for b in t.eq if not b.is_neutral()]
     if active:
-        board = Pedalboard([_eq_plugin(b) for b in active])
-        x = board(x.T.astype(np.float32), sr).T.astype(np.float64)
+        x = eq.apply(x, active, sr)
+
+    if t.pan != 0.0:
+        left, right = audio.pan_gains(t.pan)
+        x = x * np.array([left, right])
 
     if t.width != 1.0:
         mid = (x[:, 0] + x[:, 1]) / 2.0
         side = (x[:, 0] - x[:, 1]) / 2.0 * t.width
         x = np.stack([mid + side, mid - side], axis=1)
-
-    if t.pan != 0.0:
-        left, right = audio.pan_gains(t.pan)
-        x = x * np.array([left, right])
 
     if t.gain_db != 0.0:
         x = x * audio.db_to_gain(t.gain_db)

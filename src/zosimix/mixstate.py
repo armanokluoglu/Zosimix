@@ -1,7 +1,7 @@
 """The mix state: everything the agent is allowed to change, in real units (DESIGN.md §3.3).
 
 One MixState is the single source of truth that both engines render:
-  - the offline engine applies it to the stem WAVs with pedalboard, and
+  - the offline engine applies it to the stem WAVs in Python (EQ: zosimix.eq), and
   - the FL engine translates it into fader, knob and Parametric EQ 2 moves.
 It is also the human-readable "mix recipe" a run produces.
 
@@ -35,7 +35,7 @@ class EqBand:
     type: str = "peaking"
     freq_hz: float = 1000.0
     gain_db: float = 0.0        # ignored by highpass/lowpass
-    q: float = 1.0
+    q: float = 1.0              # highpass/lowpass: the bump at the cutoff (0.707 = none)
 
     def is_neutral(self) -> bool:
         return self.type in ("peaking", "low_shelf", "high_shelf") and self.gain_db == 0.0
