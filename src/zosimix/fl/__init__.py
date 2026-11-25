@@ -5,5 +5,7 @@
   session   - launch FL on a copy of the template, save, close, and render from the command line
   controls  - FL's knob positions <-> the units FL reports (dB, Hz, named choices)
   probe     - calibration step 1: read FL's own value scales through the bridge
-  calibrate - calibration step 2: measure what the controls do to sound, with renders
+  calibrate - calibration step 2: measure what the controls do to sound, with renders;
+              `calibrate table` turns the measurements into mapping.json
+  parity    - the same mix state through both engines, compared (results/parity.md)
 """

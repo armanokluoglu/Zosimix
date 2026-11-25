@@ -17,6 +17,7 @@ import numpy as np
 from zosimix.fl.bridge import Bridge, BridgeError
 
 PROBE = Path(__file__).resolve().parents[3] / "fl_bridge" / "calibration" / "probe.json"
+MAPPING = PROBE.parent / "mapping.json"     # width->Q and separation->width tables (D63)
 
 FADER_MAX_DB = 5.59             # position 1.0; boost beyond this goes on PEQ2's main level (D43)
 EQ_SLOT = 0                     # PEQ2 sits in the first effect slot of every insert
@@ -62,6 +63,47 @@ def eq_type_pos(name: str) -> float:
 
 def eq_order_pos(name: str) -> float:
     return EQ_ORDERS.index(name) / (len(EQ_ORDERS) - 1)
+
+
+@cache
+def _mapping() -> dict:
+    return json.loads(MAPPING.read_text(encoding="utf-8"))
+
+
+# Which measured width->Q table serves each mix-state band type (D63).
+Q_TABLE = {"peaking": "peaking", "low_shelf": "shelf", "high_shelf": "shelf",
+           "highpass": "highpass", "lowpass": "lowpass"}
+
+
+def eq_width_pos(type_: str, q: float) -> float:
+    """PEQ2's width knob position that gives this Q, from the measured table (D63).
+
+    Q falls as the width rises, roughly evenly in log(Q), so we interpolate the width
+    against log(Q). A Q just outside the measured range (by up to 5%) is clamped to the
+    nearest end; anything further is outside what FL can do and raises.
+    """
+    rows = np.array(_mapping()["q_by_width"][Q_TABLE[type_]])        # [[width, q], ...], q falling
+    widths, log_qs = rows[:, 0], np.log(rows[:, 1])
+    log_q = math.log(q)
+    if not log_qs.min() - 0.05 <= log_q <= log_qs.max() + 0.05:
+        raise ValueError(f"{type_} q={q} is outside what FL's Parametric EQ 2 can make "
+                         f"({rows[:, 1].min():.2f}..{rows[:, 1].max():.2f})")
+    return float(np.interp(log_q, log_qs[::-1], widths[::-1]))
+
+
+def unity_gain() -> float:
+    """What a fully neutral path through FL passes (0.99984, D63); the FL engine divides it out."""
+    return float(_mapping()["unity_gain"])
+
+
+def sep_for_width(width: float) -> tuple[float, float]:
+    """(stereo separation, the width it actually gives): the 1/64 step closest to `width`.
+
+    Separation moves in steps, so most widths are matched to within about 0.008 (D63).
+    """
+    rows = np.array(_mapping()["width_by_sep"])                        # [[sep, width], ...]
+    i = int(np.argmin(np.abs(rows[:, 1] - width)))
+    return float(rows[i, 0]), float(rows[i, 1])
 
 
 @cache

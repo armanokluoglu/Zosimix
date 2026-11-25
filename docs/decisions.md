@@ -386,3 +386,35 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Runner timeout:* the agent starts in its own process group, and a timeout stops the whole process tree (`taskkill /T /F`). Before, only `claude` was killed, and its MCP server child kept running with the workspace open.
 - *Runner answers:* diagnosis.json and mix_state.json are read separately. A broken mix state now counts as "no changes" (D50) instead of also discarding a valid diagnosis.
 - *Polarity picker (task generator):* `faults._polarity_candidates` now measures lost low end with `analysis.lowpass_mono`, the same brick-wall 500 Hz low-pass the grader and the `phase` tool use, instead of pedalboard's first-order filter. Checked on all 7 songs: the candidate stems are identical, and `smoke.json` and `full.json` regenerate byte-identical. The offline code no longer uses pedalboard; the plain baseline still gets it in its own Python.
+
+**D63 — The FL engine and its calibration tables** · 2026-11-25 · accepted
+- *Engine (`zosimix.engines.fl.FLEngine`):* one render is one FL cycle (D59). The stems go into the template's slots, every insert is set over the bridge, FL saves and closes, and the command line renders. A 4-minute, 13-stem song takes about 16 s. Per-stem renders aren't possible in FL, so `render_stems` refuses, and the agent's previews stay on the offline engine (D36).
+- *Mapping:*
+  - **Gain:** the insert fader goes as close as it can. It tops out at +5.59 dB and holds only certain positions (−11.9986 dB for −12). The exact remainder goes on PEQ2's main level, which takes exact values.
+  - **Pan:** the channel-rack pan (exactly `audio.pan_gains`, D60). The mixer pan stays centred.
+  - **Polarity:** the insert switch.
+  - **Width:** the nearest 1/64 step of stereo separation, matched to within about 0.008.
+  - **EQ:** PEQ2 bands 1–7 in order, with unused and neutral bands disabled. Q is converted to PEQ2's width knob through the measured tables.
+  - **Master:** pulled down 12 dB while rendering, so a loud mix can't clip FL's 24-bit file. The render is scaled back by the master level FL reports, and divided by FL's constant 0.99984 on every path.
+- *Calibration tables (`fl_bridge/calibration/mapping.json`, built by `python -m zosimix.fl.calibrate table` from 6 more renders):*
+  - **Width→Q:** 24 widths for peaking, 20 for shelves, and 12 each for high-pass and low-pass. Q is fitted per width against `zosimix.eq` from the full-resolution response. Fits are within 0.17 dB for narrow peaks, 0.49 dB for the widest peak, 0.07 dB for shelves, and 1.2 dB for high-pass. Low-pass is within 1.45 dB, all of it in the deep roll-off.
+  - **Shelves:** their Q depends slightly on gain (−12 dB at the default width fits Q 0.876, against 0.842 at +6). The table is built at +6 dB; the error elsewhere is a few hundredths of a dB.
+  - **Stereo separation:** all 63 positive steps were measured. The mid level is exactly constant, so separation is pure width.
+- *Action space narrowed to what FL can make (consistent with D12):* Q is now limited per type. Peaking 0.2–14 (FL: 0.18–14.4), shelves 0.41–1.04 (FL: 0.40–1.05; PEQ2 has no resonant shelves), high-pass/low-pass 0.1–6.5 (FL: 0.07–6.8). Before, every type allowed 0.1–18. The faults use Q 8 (resonance) and Q 1 (mud), well inside the range. The tool description and the plain-baseline prompt list the ranges.
+
+**D64 — Parity check: FL and the offline engine agree** · 2026-11-25 · accepted
+- *Method (`python -m zosimix.fl.parity`, results in `results/parity.md`):* one task per song from the full set (7 songs, all 7 fault types). The faulty stems are built exactly as the agent receives them, and four mix states are rendered on both engines:
+  - **neutral:** the mix as handed over
+  - **repair:** the ideal fix
+  - **busy:** six stems using gain past the fader's range, cuts, pan, width both ways, polarity, and peaking, shelf and high-pass bands
+  - **lowpass:** a low-pass on one stem
+- *Tolerances, set before the results:* a residual of −40 dB or less relative to the mix, every one of the 8 analysis bands within 0.1 dB, and loudness within 0.05 LU.
+- *Results: 27 of 28 pass.*
+  - Neutral and repair, all 7 songs: residual −77 to −116 dB, bands identical. This is the case that matters for grading: on a handed-over or properly repaired mix, FL and the offline engine produce effectively the same audio.
+  - Busy, all 7 songs: −56 to −67 dB, bands within 0.02 dB.
+  - Low-pass: band levels match within 0.1 dB on 6 of 7 songs, and one sits exactly on the limit (0.100 dB). The waveform residual is −21 to −50 dB.
+- *The known exception: PEQ2's low-pass phase.* Its magnitude matches `zosimix.eq` (D63), but its phase lags by about one sample at high frequencies. A least-squares fit of FL's response shows a nearly symmetric numerator. A symmetric-numerator model matched FL better at low cutoffs (−38 dB at 500 Hz) but not at 9 kHz (−17 dB), and even a free five-coefficient biquad fit reaches only −30 to −35 dB. So FL's low-pass isn't a plain biquad, and modelling it further isn't worth it now. No fault needs a low-pass, and graders judge EQ repairs by spectra. A low-passed *healthy* stem already fails collateral on either engine. Low-pass rows are judged on the spectrum only, and the report says so.
+- *What this settles:* grading with the offline engine (D36) is faithful to FL for everything except a low-pass's phase. An earlier run found that the low-pass, inside the busy state, was why 4 of 7 busy renders failed; it was then split into its own state.
+- *Smaller fixes found on the way:* FL renders a few samples short (35 samples on a 243 s song), so `session.render` allows 10 ms of slack. A track's fader is finished exactly with PEQ2's main level (D63).
+- *Cost:* each FL render takes 12–17 s per song, so the whole check (28 FL renders) takes about 8 minutes.
+- *Citations:* `results/parity.md` ends with the MoisesDB and AlbumDB citations, read from `CITATIONS.md` so they stay identical, as CLAUDE.md requires for results pages. The earlier `results/smoke-1..3.md` lacked them and now have the same block.

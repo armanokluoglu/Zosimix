@@ -29,7 +29,10 @@ PAN = (-1.0, 1.0)
 WIDTH = (0.0, 2.0)
 EQ_FREQ_HZ = (20.0, 20000.0)
 EQ_GAIN_DB = (-18.0, 18.0)
-EQ_Q = (0.1, 18.0)
+# Q per band type: what FL's Parametric EQ 2 can actually produce (measured, D63). FL has no
+# resonant shelves, and its width knob can't make a peak narrower than about Q 14.
+EQ_Q = {"peaking": (0.2, 14.0), "low_shelf": (0.41, 1.04), "high_shelf": (0.41, 1.04),
+        "highpass": (0.1, 6.5), "lowpass": (0.1, 6.5)}
 
 
 @dataclass
@@ -123,4 +126,4 @@ class MixState:
                     raise ValueError(f"{stem}.eq[{i}].type={b.type!r}; allowed: {EQ_BAND_TYPES}")
                 check(f"{stem}.eq[{i}].freq_hz", b.freq_hz, EQ_FREQ_HZ)
                 check(f"{stem}.eq[{i}].gain_db", b.gain_db, EQ_GAIN_DB)
-                check(f"{stem}.eq[{i}].q", b.q, EQ_Q)
+                check(f"{stem}.eq[{i}].q", b.q, EQ_Q[b.type])

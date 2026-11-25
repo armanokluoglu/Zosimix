@@ -30,8 +30,10 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+from scipy.optimize import minimize_scalar
 from scipy.signal import csd, welch
 
+from zosimix import eq as eq_filters
 from zosimix.fl import controls, session, slots
 from zosimix.fl.bridge import Bridge
 
@@ -57,6 +59,29 @@ def eq(type_: str, freq: float, gain_db: float = 0.0, width: float = DEFAULT_WID
 def _peak_widths() -> list[dict]:
     return [{"label": f"peak +12 @1k w{w}", "params": eq("peaking", 1000, 12, w)}
             for w in (0.05, 0.1, 0.2, 0.3, DEFAULT_WIDTH, 0.5, 0.7, 1.0)]
+
+
+def fitted(type_: str, freq: float, gain_db: float, width: float, table: str | None = None) -> dict:
+    """A single-band EQ setting whose Q gets fitted (D63). `table` names the width->Q table
+    it belongs to; settings without one only check that the table holds at other gains."""
+    window = {"label": f"{type_} {gain_db:+g} @{freq:g} w{width}", "params": eq(type_, freq, gain_db, width),
+              "fit": {"type": type_, "freq": freq, "gain_db": gain_db, "width": width}}
+    if table:
+        window["fit"]["table"] = table
+    return window
+
+
+# Widths for the width->Q tables: dense where Q changes fastest (narrow bands).
+PEAK_WIDTHS = (0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.065, 0.08, 0.1, 0.125, 0.15, 0.2, 0.25,
+               0.3, DEFAULT_WIDTH, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+SHELF_WIDTHS = (0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, DEFAULT_WIDTH, 0.45, 0.5, 0.55, 0.6122, 0.65, 0.7,
+                0.75, 0.8, 0.85, 0.9, 1.0)
+PASS_WIDTHS = (0.0, 0.05, 0.1, 0.2, 0.3, DEFAULT_WIDTH, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+
+
+def _sep_steps(first: int, last: int) -> list[dict]:
+    """Stereo separation moves in steps of 1/64. The positive half is a curve, so measure every step."""
+    return [{"label": f"sep {k}/64", "sep": k / 64} for k in range(first, last + 1)]
 
 
 RENDERS: dict[str, list[dict]] = {
@@ -92,6 +117,21 @@ RENDERS: dict[str, list[dict]] = {
         {"label": "highpass @200 2 w0.7", "params": eq("highpass", 200, width=0.7)},
         {"label": "lowpass @2k 2", "params": eq("lowpass", 2000)},
     ],
+    # Dense tables for the FL engine (D63). Narrow peaks are measured at 2 kHz, where even
+    # the narrowest band spans many analysis bins.
+    "peak_widths": [fitted("peaking", 2000, 12, w, "peaking") for w in PEAK_WIDTHS],
+    "shelf_widths": [
+        *(fitted("low_shelf", 200, 6, w, "shelf") for w in SHELF_WIDTHS),
+        fitted("low_shelf", 200, -12, DEFAULT_WIDTH), fitted("low_shelf", 200, 12, 0.8),
+        fitted("high_shelf", 4000, 6, 0.1), fitted("high_shelf", 4000, -9, 0.8),
+    ],
+    "pass_widths": [
+        *(fitted("highpass", 200, 0, w, "highpass") for w in PASS_WIDTHS),
+        *(fitted("lowpass", 2000, 0, w, "lowpass") for w in PASS_WIDTHS),
+    ],
+    "sep_1": _sep_steps(1, 21),
+    "sep_2": _sep_steps(22, 42),
+    "sep_3": _sep_steps(43, 63),
 }
 
 
@@ -140,19 +180,49 @@ def apply(fl: Bridge, track: int, setting: dict) -> dict:
     return reported
 
 
+def response(x: np.ndarray, y: np.ndarray, ch: int) -> tuple[np.ndarray, np.ndarray]:
+    """Full-resolution magnitude response of one channel in dB (5.4 Hz bins)."""
+    f, pxx = welch(x[:, ch], SR, nperseg=8192)
+    _, pxy = csd(x[:, ch], y[:, ch], SR, nperseg=8192)
+    return f, 20 * np.log10(np.abs(pxy) / pxx + 1e-12)
+
+
 def measure(x: np.ndarray, y: np.ndarray) -> dict:
     """Compare one window's output y with its input x (both (frames, 2))."""
     m, *_ = np.linalg.lstsq(x, y, rcond=None)                 # y ~= x @ m
     resid = y - x @ m
     h_db = []
     for ch in range(2):
-        f, pxx = welch(x[:, ch], SR, nperseg=8192)
-        _, pxy = csd(x[:, ch], y[:, ch], SR, nperseg=8192)
-        mag = np.abs(pxy) / pxx
-        h_db.append(np.round(20 * np.log10(np.interp(FREQS, f, mag) + 1e-12), 3).tolist())
+        f, mag_db = response(x, y, ch)
+        h_db.append(np.round(np.interp(FREQS, f, mag_db), 3).tolist())
     return {"M": np.round(m, 6).tolist(),
             "matrix_residual_db": round(10 * np.log10((resid ** 2).sum() / max((y ** 2).sum(), 1e-20)), 2),
             "H_db": h_db}
+
+
+def fit_q(f: np.ndarray, measured_db: np.ndarray, type_: str, freq: float, gain_db: float) -> dict:
+    """The Q that makes zosimix.eq's filter best match FL's measured response (D63).
+
+    Compared from 20 Hz to 20 kHz, wherever the filter passes sound (above -40 dB). The
+    error is RMS in dB, which is smooth in Q, so a bounded 1-D search finds the minimum.
+    """
+    use = (f >= 20) & (f <= 20000) & (measured_db > -40)
+    f, measured_db = f[use], measured_db[use]
+
+    def rms_error(log_q: float) -> float:
+        diff = eq_filters.response_db([(type_, freq, gain_db, 10 ** log_q)], f, SR) - measured_db
+        return float(np.sqrt(np.mean(diff ** 2)))
+
+    best = minimize_scalar(rms_error, bounds=(np.log10(0.03), np.log10(300)), method="bounded",
+                           options={"xatol": 1e-5})
+    q = float(10 ** best.x)
+    diff = eq_filters.response_db([(type_, freq, gain_db, q)], f, SR) - measured_db
+    return {"q": round(q, 5), "rms_err_db": round(best.fun, 4), "max_err_db": round(float(np.abs(diff).max()), 4)}
+
+
+def side_gain(m: list[list[float]]) -> dict:
+    """Stereo separation as mid/side scaling: width = how much side signal survives (1 = unchanged)."""
+    return {"width": round(m[0][0] - m[0][1], 5), "mid_gain": round(m[0][0] + m[0][1], 5)}
 
 
 def run(name: str) -> dict:
@@ -174,16 +244,64 @@ def run(name: str) -> dict:
         seg = np.zeros_like(x)
         got = y[start:min(stop, len(y))]
         seg[:len(got)] = got
-        results.append({"label": st["label"], "setting": {k2: v for k2, v in st.items() if k2 != "label"},
-                        "reported": reported[k], **measure(x, seg)})
+        window = {"label": st["label"], "setting": {k2: v for k2, v in st.items() if k2 != "label"},
+                  "reported": reported[k], **measure(x, seg)}
+        if "fit" in st:
+            fit = st["fit"]
+            window["fit"] = {**fit, **fit_q(*response(x, seg, 0), fit["type"], fit["freq"], fit["gain_db"])}
+        if "sep" in st:
+            window["stereo"] = side_gain(window["M"])
+        results.append(window)
     return {"render": name, "seconds": round(time.monotonic() - t0, 1), "level_rms": LEVEL,
             "freqs_hz": np.round(FREQS, 3).tolist(), "windows": results}
 
 
+def build_mapping() -> dict:
+    """Collect the dense measurements into the tables the FL engine uses (mapping.json, D63).
+
+    q_by_width: {table: [[width, q], ...]} for peaking, shelf, highpass and lowpass.
+    width_by_sep: [[sep, width], ...] for every 1/64 step of stereo separation. The negative
+                  half is width = 1 - sep exactly (D60); the positive half is measured.
+    """
+    tables: dict[str, list[list[float]]] = {}
+    seps = {0.0: 1.0, 1.0: 0.0}
+    for path in sorted(OUT_DIR.glob("audio-*.json")):
+        for w in json.loads(path.read_text(encoding="utf-8"))["windows"]:
+            fit = w.get("fit")
+            if fit and fit.get("table"):
+                tables.setdefault(fit["table"], []).append([fit["width"], fit["q"]])
+            if "stereo" in w and w["setting"]["sep"] > 0:
+                seps[round(w["setting"]["sep"] * 64) / 64] = w["stereo"]["width"]
+    for k in range(1, 65):
+        seps[-k / 64] = 1 + k / 64
+    return {"q_by_width": {t: sorted(rows) for t, rows in tables.items()},
+            "width_by_sep": sorted([s, w] for s, w in seps.items()),
+            "unity_gain": unity_gain()}
+
+
+def unity_gain() -> float:
+    """What a fully neutral path through FL passes: 0.99984, not 1 (D63). Averaged over the
+    neutral windows and the mid gain of every separation step, which all agree to 6 digits."""
+    values = []
+    for path in sorted(OUT_DIR.glob("audio-*.json")):
+        for w in json.loads(path.read_text(encoding="utf-8"))["windows"]:
+            if w["label"].startswith("neutral"):
+                values.append(w["M"][0][0])
+            if "stereo" in w:
+                values.append(w["stereo"]["mid_gain"])
+    return round(float(np.mean(values)), 6)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("render", choices=list(RENDERS))
+    ap.add_argument("render", choices=[*RENDERS, "table"], help="a render to measure, or 'table' to build mapping.json")
     name = ap.parse_args().render
+    if name == "table":
+        mapping = build_mapping()
+        controls.MAPPING.write_text(json.dumps(mapping, indent=1), encoding="utf-8")
+        print(f"wrote {controls.MAPPING}: {', '.join(f'{t} ({len(r)})' for t, r in mapping['q_by_width'].items())}, "
+              f"{len(mapping['width_by_sep'])} separation steps")
+        return
     result = run(name)
     out = OUT_DIR / f"audio-{name}.json"
     out.write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")

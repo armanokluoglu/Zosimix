@@ -84,7 +84,8 @@ polarity (invert) -> EQ bands -> pan -> stereo width -> gain, then all tracks ar
       analog shape up to 20 kHz. Below about 4 kHz they equal pedalboard's PeakFilter, LowShelfFilter
       and HighShelfFilter. highpass/lowpass are 12 dB/octave; their q sets the bump at the cutoff
       (0.707 = none) and their gain_db is ignored. Leaving q out means 0.707 for highpass/lowpass
-      and 1.0 for the other types.
+      and 1.0 for the other types. q ranges: peaking 0.2..14, shelves 0.41..1.04, highpass/lowpass
+      0.1..6.5. freq_hz 20..20000, gain_db -18..18.
 Tracks you leave out stay unchanged.
 
 When you are done, write exactly these two files:

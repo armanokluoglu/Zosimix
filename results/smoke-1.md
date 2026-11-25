@@ -19,3 +19,41 @@ run smoke-1: 6 graded runs
 - **smoke-003 (pan on bass, subtle):** the agent saw the bass leaning left (−4.3 dB) but treated it as intentional, then "fixed" a sax that sits right naturally. The missing knowledge is a mixing convention: bass, kick and lead vocal belong in the centre. The diagnosis skill (day 8) should teach it.
 - **smoke-004 (bass −6 dB):** correct diagnosis, but it overshot (+8 dB). Repair score 0.667, just under the 0.7 pass line. Without a reference, level is a judgment call.
 - **smoke-005 (mud +3 dB on overheads, subtlest size):** it went after a natural 732 Hz guitar resonance instead, a false positive, and changed the mix at only 0.5 confidence. This is the resonance ambiguity from D44, plus a restraint problem.
+
+## Data
+
+The songs come from MoisesDB and AlbumDB.
+
+## MoisesDB
+
+- License: CC BY-NC-SA 4.0 (non-commercial; derivatives must use the same license)
+- Source: https://music.ai/research/ · https://github.com/moises-ai/moises-db
+
+```bibtex
+@misc{pereira2023moisesdb,
+  title={Moisesdb: A dataset for source separation beyond 4-stems},
+  author={Igor Pereira and Felipe Araújo and Filip Korzeniowski and Richard Vogl},
+  year={2023},
+  eprint={2307.15913},
+  archivePrefix={arXiv},
+  primaryClass={cs.SD}
+}
+```
+
+## AlbumDB
+
+- License: CC BY 4.0
+- Source: https://doi.org/10.5281/zenodo.19683001
+
+```bibtex
+@dataset{mckenzie_2026_19683001,
+  author    = {McKenzie, Thomas and Moliner Juanpere, Eloi and Wright, Alec},
+  title     = {AlbumDB: A multitrack dataset of a ten-song album with stereo and immersive 7.1.4 masters},
+  month     = apr,
+  year      = 2026,
+  publisher = {Zenodo},
+  version   = {1.0},
+  doi       = {10.5281/zenodo.19683001},
+  url       = {https://doi.org/10.5281/zenodo.19683001}
+}
+```

@@ -32,7 +32,8 @@ WORK_DIR = FL_ROOT / "work"            # no spaces: FL's command line can't hand
 LAUNCH_TIMEOUT_S = 180                 # cold start of FL with 24 audio clips
 CLOSE_TIMEOUT_S = 30
 RENDER_TIMEOUT_S = 600
-RENDER_STUCK_S = 60                    # FL still open, WAV unchanged this long => it finished but stayed open
+RENDER_LENGTH_SLACK_S = 0.01           # FL rounds the song's end down (35 samples short seen, D64)
+RENDER_STUCK_S = 60                   # FL still open, WAV unchanged this long => it finished but stayed open
 
 
 class FLError(RuntimeError):
@@ -222,6 +223,6 @@ def render(project: Path, min_seconds: float = 0.0, timeout_s: float = RENDER_TI
     finally:
         _stop(proc, timeout_s=10)
     seconds = sf.info(str(wav)).duration
-    if seconds < min_seconds:
+    if seconds < min_seconds - RENDER_LENGTH_SLACK_S:
         raise FLError(f"render of {project} is {seconds:.2f} s long, expected at least {min_seconds:.2f} s")
     return wav
