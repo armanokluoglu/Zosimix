@@ -111,12 +111,18 @@ class FLEngine(MixEngine):
             for slot, name in mapping.items():
                 apply_track(s.fl, slot, name, self._state.tracks[name])
             s.save()
-        wav = session.render(project, min_seconds=length / self.sample_rate)
-        y, sr = sf.read(str(wav), dtype="float64", always_2d=True)
-        if sr != self.sample_rate:
-            raise ValueError(f"FL rendered at {sr} Hz, the song is at {self.sample_rate} Hz")
-        out = np.zeros((length, 2))
-        out[:min(length, len(y))] = y[:length]
-        # Undo the master's headroom (by the level FL reports) and FL's tiny constant loss
-        # on every path (0.99984, measured: controls.unity_gain).
-        return out * audio.db_to_gain(-master_db) / controls.unity_gain()
+        return render_project(project, length, self.sample_rate, master_db)
+
+
+def render_project(project, length: int, sample_rate: int, master_db: float) -> np.ndarray:
+    """Render a saved project with FL's command line, as `length` frames at the mix's level.
+
+    Undoes the master's headroom (by the level FL reported when it was set) and FL's tiny
+    constant loss on every path (0.99984, measured: controls.unity_gain)."""
+    wav = session.render(project, min_seconds=length / sample_rate)
+    y, sr = sf.read(str(wav), dtype="float64", always_2d=True)
+    if sr != sample_rate:
+        raise ValueError(f"FL rendered at {sr} Hz, the song is at {sample_rate} Hz")
+    out = np.zeros((length, 2))
+    out[:min(length, len(y))] = y[:length]
+    return out * audio.db_to_gain(-master_db) / controls.unity_gain()

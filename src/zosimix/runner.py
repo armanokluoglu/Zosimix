@@ -14,7 +14,9 @@ Configurations:
   zosimix          Claude Code + the Zosimix MCP server + the diagnosis skill; built-in tools off
   zosimix-noskill  the same without the skill (ablation; smoke run 1 used this setup)
   plain            Claude Code with shell + file tools and Python audio libraries; no Zosimix tools
-  (the third baseline, Claude Code + an existing FL Studio MCP, needs the FL engine: days 9-10)
+  flmcp            Claude Code working in FL Studio through rosasynthesiz/flstudio-mcp (ported to
+                   FL 20.9.2), graded from FL renders of the agent's mix (D66, D70). Needs FL closed
+                   and the Zosimix and FLStudioMCP MIDI scripts set up; playback is audible.
 
 Usage:
     python -m zosimix.runner run --set smoke --config zosimix
@@ -27,6 +29,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -57,17 +60,21 @@ CONFIGS = {
     "zosimix":         {"tools": "zosimix", "skill": True},
     "zosimix-noskill": {"tools": "zosimix", "skill": False},
     "plain":           {"tools": "plain", "skill": False},
+    "flmcp":           {"tools": "flmcp", "skill": False},
 }
 
 # Strings that should never appear in an agent's tool calls: they point at answers (D25, D51).
-FORBIDDEN = [str(REPO).lower(), str(REPO).lower().replace("\\", "/"), "groundtruth", "tasks\\smoke.json",
-             "tasks/smoke.json", "tasks\\full.json", "tasks/full.json", "results.jsonl",
+# Task files are matched by prefix, so revised sets (tasks/full-v2.json, D69) are covered too.
+FORBIDDEN = [str(REPO).lower(), str(REPO).lower().replace("\\", "/"), "groundtruth", "tasks\\smoke",
+             "tasks/smoke", "tasks\\full", "tasks/full", "results.jsonl",
              "zosimix\\runs", "zosimix/runs"]
 
 # Keys that only exist in ground-truth files (task specs, results.jsonl). Nothing the agent is
 # given contains them, so seeing one in a tool *result* means answers reached the agent,
 # however the path was spelled (D51).
-GROUND_TRUTH_MARKERS = ['"expected_verdict"', '"hint_level"', '"severity":']
+# Regular expressions. Severity counts only with a number after it: ground truth stores it as
+# 0-2, while flstudio-mcp's Mix Doctor labels its own findings "severity": "low" (D70).
+GROUND_TRUTH_MARKERS = ['"expected_verdict"', '"hint_level"', r'"severity":\s*\d']
 
 ZOSIMIX_PROMPT = """{brief}
 
@@ -103,6 +110,22 @@ When you are done, write exactly these two files:
                           "summary": "<one or two sentences>"}}
 Use "unfixable" for problems these controls cannot fix, and "no_fault" with no findings if nothing is wrong."""
 
+FLMCP_PROMPT = """{brief}
+
+The song is open in FL Studio. Each stem plays on its own mixer insert, named after the stem:
+{inserts}
+Every one of these inserts has Fruity Parametric EQ 2 in effect slot 0, set flat. Use the FL Studio
+tools to inspect and fix the mix: the mix as you leave it in FL is your fix. You cannot listen, so
+measure; FL's meters only move while the song is playing. Leave the master track alone: its level
+is not part of the task.
+
+When you are done, stop playback and write exactly this file:
+  output/diagnosis.json  {{"verdict": "fixed" | "unfixable" | "no_fault",
+                          "findings": [{{"stem": "<stem name>", "fault_type": "gain|polarity|resonance|mud|pan|clipping",
+                                        "confidence": 0.0-1.0}}],
+                          "summary": "<one or two sentences>"}}
+Use "unfixable" for problems these controls cannot fix, and "no_fault" with no findings if nothing is wrong."""
+
 
 def _claude() -> str:
     exe = shutil.which("claude")
@@ -130,6 +153,17 @@ def build_command(config: str, workspace: Path, model: str, prompt: str) -> list
         # available). An extra layer on top of the integrity scans, not a sandbox (D51, D65).
         tools = "Bash,Read,Write,Edit,Glob,Grep"
         return [_claude(), *common, "--restricted", "--tools", tools, "--allowedTools", tools]
+    if setup["tools"] == "flmcp":
+        # flstudio-mcp's mixing tools, plus Write (confined to the workspace) for diagnosis.json.
+        # The other flstudio-mcp tools are removed from the agent's view (D70).
+        from zosimix.fl import baseline as fl_baseline
+        mcp = {"mcpServers": {"flstudio": {"command": str(fl_baseline.FLMCP_SERVER), "args": []}}}
+        mcp_path = workspace.parent / "mcp.json"
+        mcp_path.write_text(json.dumps(mcp), encoding="utf-8")
+        allowed = ",".join(["Write", *(f"mcp__flstudio__{t}" for t in fl_baseline.MIXING_TOOLS)])
+        hidden = ",".join(f"mcp__flstudio__{t}" for t in fl_baseline.EXCLUDED_TOOLS)
+        return [_claude(), *common, "--restricted", "--mcp-config", str(mcp_path), "--tools", "Write",
+                "--allowedTools", allowed, "--disallowedTools", hidden]
     mcp = {"mcpServers": {"zosimix": {"command": sys.executable,
                                       "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace)]}}}
     mcp_path = workspace.parent / "mcp.json"            # beside the workspace, not in it
@@ -177,7 +211,7 @@ def integrity_flags(transcript: Path) -> list[str]:
                 flags += [f"{block.get('name')}: {f}" for f in FORBIDDEN if f in text]
             elif msg.get("type") == "user" and block.get("type") == "tool_result":
                 text = _result_text(block.get("content"))
-                flags += [f"tool result: {m}" for m in GROUND_TRUTH_MARKERS if m in text]
+                flags += [f"tool result: {m}" for m in GROUND_TRUTH_MARKERS if re.search(m, text)]
     return flags
 
 
@@ -233,10 +267,13 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     # results, transcripts and other runs are not one "../" away (D51).
     work = WORKSPACES / secrets.token_hex(8)
     workspace = work / "ws"
+    tools = CONFIGS[config]["tools"]
+    if tools == "flmcp":
+        return _run_one_fl(spec, config, repeat, run_dir, model, work)
     tasks.materialize(spec, workspace, target=targets.target_for(spec.song_id, profiles))
     (workspace / "output").mkdir(exist_ok=True)
     brief = spec.brief
-    prompt = (ZOSIMIX_PROMPT.format(brief=brief) if CONFIGS[config]["tools"] == "zosimix"
+    prompt = (ZOSIMIX_PROMPT.format(brief=brief) if tools == "zosimix"
               else PLAIN_PROMPT.format(brief=brief, python=BASELINE_PY))
     transcript = run_dir / "transcripts" / f"{spec.task_id}-{config}-{repeat}.jsonl"
     transcript.parent.mkdir(parents=True, exist_ok=True)
@@ -249,8 +286,18 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     result = _final_result(transcript)
     diagnosis = _read_answer(workspace / "output" / "diagnosis.json")
     mix_state = _read_answer(workspace / "output" / "mix_state.json")
+    row = _row(spec, config, repeat, model, transcript, result, wall, timed_out)
+    if _hit_limit(result, stderr):
+        row["status"] = "usage_limit"                       # not graded: resuming re-runs this task
+    else:
+        row["grade"] = graders.grade(spec, diagnosis, mix_state)
+        _save_answer(run_dir, spec, config, repeat, diagnosis, {"mix_state": mix_state})
+    shutil.rmtree(work, ignore_errors=True)                 # audio is regenerated from the spec on demand
+    return row
 
-    row = {
+
+def _row(spec, config, repeat, model, transcript: Path, result: dict, wall: float, timed_out: bool) -> dict:
+    return {
         "task_id": spec.task_id, "config": config, "repeat": repeat, "model": model,
         "status": "done",
         "timed_out": timed_out,
@@ -261,16 +308,57 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
         "agent_error": result.get("is_error"),
         "integrity_flags": integrity_flags(transcript),
     }
-    hit_limit = (not result or result.get("is_error")) and _looks_like_usage_limit(result, stderr)
-    if hit_limit:
-        row["status"] = "usage_limit"                       # not graded: resuming re-runs this task
-    else:
-        row["grade"] = graders.grade(spec, diagnosis, mix_state)
-        if diagnosis is not None:
-            (run_dir / "answers").mkdir(exist_ok=True)
-            (run_dir / "answers" / f"{spec.task_id}-{config}-{repeat}.json").write_text(
-                json.dumps({"diagnosis": diagnosis, "mix_state": mix_state}, indent=1), encoding="utf-8")
-    shutil.rmtree(work, ignore_errors=True)                 # audio is regenerated from the spec on demand
+
+
+def _hit_limit(result: dict, stderr: str) -> bool:
+    return bool((not result or result.get("is_error")) and _looks_like_usage_limit(result, stderr))
+
+
+def _save_answer(run_dir: Path, spec, config: str, repeat: int, diagnosis, extra: dict) -> None:
+    if diagnosis is not None:
+        (run_dir / "answers").mkdir(exist_ok=True)
+        (run_dir / "answers" / f"{spec.task_id}-{config}-{repeat}.json").write_text(
+            json.dumps({"diagnosis": diagnosis, **extra}, indent=1), encoding="utf-8")
+
+
+def _run_one_fl(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model: str, work: Path) -> dict:
+    """The flstudio-mcp baseline (D70): the song is open in FL while the agent works; its mix is
+    then read back from FL as group renders and graded from those. The workspace holds only the
+    brief and the output folder: the agent meets the song through FL, not as files."""
+    from zosimix.fl import baseline as fl_baseline
+    from zosimix.fl.bridge import BridgeError
+    from zosimix.fl.session import FLError
+
+    workspace = work / "ws"
+    tasks.write_brief(spec, workspace)
+    (workspace / "output").mkdir(exist_ok=True)
+    transcript = run_dir / "transcripts" / f"{spec.task_id}-{config}-{repeat}.jsonl"
+    transcript.parent.mkdir(parents=True, exist_ok=True)
+    stems, sr = tasks.faulty_stems(spec)
+    try:
+        with fl_baseline.open_task(stems, sr) as fl_task:
+            inserts = "\n".join(f"  insert {i}: {name}" for i, name in fl_task.inserts.items())
+            prompt = FLMCP_PROMPT.format(brief=spec.brief, inserts=inserts)
+            started = time.time()
+            with open(transcript, "w", encoding="utf-8") as out:
+                stderr, timed_out = _run_agent(build_command(config, workspace, model, prompt), workspace, out)
+            wall = time.time() - started
+            result = _final_result(transcript)
+            diagnosis = _read_answer(workspace / "output" / "diagnosis.json")
+            row = _row(spec, config, repeat, model, transcript, result, wall, timed_out)
+            if _hit_limit(result, stderr):
+                row["status"] = "usage_limit"
+                return row
+            renders = fl_baseline.read_back(fl_task, graders.render_groups(spec)) if diagnosis is not None else {}
+            row["fl_agent_state"] = fl_task.agent_state
+    except (FLError, BridgeError) as exc:
+        # Not graded: FL itself failed, which says nothing about the agent. Resuming re-runs it.
+        return {"task_id": spec.task_id, "config": config, "repeat": repeat, "model": model,
+                "status": "fl_error", "error": str(exc)}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    row["grade"] = graders.grade_renders(spec, diagnosis, renders)
+    _save_answer(run_dir, spec, config, repeat, diagnosis, {"fl_agent_state": row["fl_agent_state"]})
     return row
 
 
@@ -334,6 +422,10 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
                     f.write(json.dumps(row) + "\n")
                 if row["status"] == "usage_limit":
                     print("USAGE LIMIT reached. Resume later with the same command plus --run", run_id)
+                    return run_dir
+                if row["status"] == "fl_error":
+                    # FL failing is about the setup, not the agent, and it tends to repeat.
+                    print(f"FL ERROR: {row['error']}\nFix FL, then resume with the same command plus --run", run_id)
                     return run_dir
                 g = row["grade"]
                 print(f"{'PASS' if g['pass'] else 'fail'}  ({row['wall_s']:.0f} s, {row['turns']} turns)"

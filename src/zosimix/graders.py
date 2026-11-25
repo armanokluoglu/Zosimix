@@ -12,11 +12,17 @@ Every run is graded on four things:
 
 Graders always use Song.load_clean_stems() (D40) and render the agent's final mix state
 with the offline engine, so grading is identical whatever engine the run used.
+
+The one exception is the flstudio-mcp baseline (D70). Its agent changes the mix inside FL
+with controls that have no mix-state equivalent, so its mix is read back as FL renders of
+a few groups of tracks (`render_groups`) and graded by `grade_renders`. Both paths score
+the same `Rendered` pieces with the same code.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -65,17 +71,28 @@ def acceptable_stems(fault: faults.Fault, broken: dict[str, np.ndarray], sr: int
     return {fault.stem} | {n for n, r in report.items() if r["flip_db"] >= POLARITY_ACCEPT_DB}
 
 
-def repair_score(fault: faults.Fault, clean: dict, broken: dict, processed: dict, sr: int) -> dict:
+@dataclass
+class Rendered:
+    """The agent's mix, in the pieces grading needs. All stereo, processed by the agent."""
+    mix: np.ndarray                     # the whole mix
+    others: np.ndarray | None           # every stem a correct answer may not name, summed (None: none)
+    fault_stem: np.ndarray | None       # the faulty stem alone (gain, pan, mud, resonance)
+    drum_bus: np.ndarray | None         # every drum stem summed (polarity)
+    touched: list[str] | None           # healthy stems whose settings changed; None = not known (FL)
+    invalid_mix_state: str | None = None
+
+
+def repair_score(fault: faults.Fault, clean: dict, broken: dict, rendered: Rendered, sr: int) -> dict:
     """Fault-specific error before (broken) and after (agent's mix), and the fraction removed."""
     s = fault.stem
     if fault.type == "gain":
         before = abs(fault.params["gain_db"])
-        after = abs(audio.gain_to_db(audio.rms(processed[s]) / audio.rms(audio.to_stereo(clean[s]))))
+        after = abs(audio.gain_to_db(audio.rms(rendered.fault_stem) / audio.rms(audio.to_stereo(clean[s]))))
         unit = "dB level error"
     elif fault.type == "pan":
         target = analysis.balance_db(audio.to_stereo(clean[s]))
         before = abs(analysis.balance_db(audio.to_stereo(broken[s])) - target)
-        after = abs(analysis.balance_db(processed[s]) - target)
+        after = abs(analysis.balance_db(rendered.fault_stem) - target)
         unit = "dB balance error"
     elif fault.type in ("resonance", "mud"):
         half_octave = 1 / 3 if fault.type == "resonance" else 1.0
@@ -87,16 +104,16 @@ def repair_score(fault: faults.Fault, clean: dict, broken: dict, processed: dict
             return 10 * np.log10(power[(freqs >= lo) & (freqs < hi)].sum() / power.sum())
 
         target = band_share(clean[s])
-        before, after = abs(band_share(broken[s]) - target), abs(band_share(processed[s]) - target)
+        before, after = abs(band_share(broken[s]) - target), abs(band_share(rendered.fault_stem) - target)
         unit = "dB band-shape error"
     elif fault.type == "polarity":
         drums = [n for n in clean if family_of(n) == "drums"]
 
-        def low_db(stems):
-            return audio.gain_to_db(audio.rms(analysis.lowpass_mono(_sum(stems, drums), sr)[:, None]))
+        def low_db(bus):
+            return audio.gain_to_db(audio.rms(analysis.lowpass_mono(bus, sr)[:, None]))
 
-        target = low_db(clean)
-        before, after = abs(low_db(broken) - target), abs(low_db(processed) - target)
+        target = low_db(_sum(clean, drums))
+        before, after = abs(low_db(_sum(broken, drums)) - target), abs(low_db(rendered.drum_bus) - target)
         unit = "dB drum-bus low-end error"
     else:
         return {}
@@ -131,48 +148,126 @@ def read_diagnosis(diagnosis: object) -> tuple[str | None, list[dict], str | Non
     return text(diagnosis.get("verdict")), findings, problem
 
 
-def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_root=DATA_ROOT) -> dict:
+@dataclass
+class _Task:
+    """One task's audio and answer key, as grading sees it."""
+    fault: faults.Fault
+    clean: dict[str, np.ndarray]
+    broken: dict[str, np.ndarray]
+    sr: int
+    accept: set[str]                    # stems a correct answer may name
+
+    @property
+    def others(self) -> list[str]:
+        return [n for n in self.clean if n not in self.accept]
+
+    @property
+    def drums(self) -> list[str]:
+        return [n for n in self.clean if family_of(n) == "drums"]
+
+
+def _load_task(spec: TaskSpec, songs_root) -> _Task:
     song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
     clean, sr, _ = song.load_clean_stems()
     fault = faults.Fault(**spec.fault)
     broken = dict(clean)
     if fault.stem:
         broken[fault.stem] = faults.apply(fault, clean[fault.stem], sr)
+    return _Task(fault, clean, broken, sr, acceptable_stems(fault, broken, sr))
 
-    result: dict = {"task_id": spec.task_id, "fault_type": fault.type, "stem": fault.stem,
-                    "severity": fault.severity, "hint_level": spec.hint_level}
+
+def _header(spec: TaskSpec) -> dict:
+    return {"task_id": spec.task_id, "fault_type": spec.fault["type"], "stem": spec.fault["stem"],
+            "severity": spec.fault["severity"], "hint_level": spec.hint_level}
+
+
+def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_root=DATA_ROOT) -> dict:
+    """Grade an answer given as a mix state, rendered with the offline engine."""
     if diagnosis is None:
-        return {**result, "submitted": False, "pass": False}
-
-    engine = OfflineEngine(broken, sr)
+        return {**_header(spec), "submitted": False, "pass": False}
+    task = _load_task(spec, songs_root)
+    engine = OfflineEngine(task.broken, task.sr)
+    invalid = None
     try:
         engine.set_state(MixState.from_dict(mix_state or {}))
-        result["invalid_mix_state"] = None
     except (ValueError, TypeError) as exc:            # an unusable answer counts as "no changes"
-        result["invalid_mix_state"] = str(exc)
+        invalid = str(exc)
     state = engine.get_state()                        # full state: unmentioned tracks are neutral
     processed = engine.render_stems()
+    s = task.fault.stem
+    rendered = Rendered(
+        mix=engine.render(),
+        others=_sum(processed, task.others) if task.others else None,
+        fault_stem=processed[s] if s else None,
+        drum_bus=_sum(processed, task.drums) if task.drums else None,
+        touched=sorted(n for n in task.others if not state.tracks[n].is_neutral()),
+        invalid_mix_state=invalid,
+    )
+    return _score(spec, task, diagnosis, rendered)
+
+
+def render_groups(spec: TaskSpec, songs_root=DATA_ROOT) -> list[frozenset[str]]:
+    """The groups of tracks FL must render on their own to grade this task (D70).
+
+    FL renders only whole mixes, so each piece in `Rendered` is a render with every track
+    outside one group muted. The pieces add up because the mix is linear (faders, pans and
+    Parametric EQ 2 only), so the whole mix is the sum of the first two groups.
+      control:  every stem (one render: the mix is also "the others")
+      polarity: the acceptable drum mics, everything else, the remaining drum mics
+      others:   the faulty stem, everything else
+    """
+    task = _load_task(spec, songs_root)
+    if not task.accept:
+        return [frozenset(task.clean)]
+    groups = [frozenset(task.accept), frozenset(task.others)]
+    if task.fault.type == "polarity" and set(task.drums) - task.accept:
+        groups.append(frozenset(set(task.drums) - task.accept))
+    return [g for g in groups if g]
+
+
+def grade_renders(spec: TaskSpec, diagnosis: dict | None, renders: dict[frozenset[str], np.ndarray],
+                  songs_root=DATA_ROOT) -> dict:
+    """Grade an agent whose mix was read back as FL renders of `render_groups` (D70)."""
+    if diagnosis is None:
+        return {**_header(spec), "submitted": False, "pass": False}
+    task = _load_task(spec, songs_root)
+    if not task.accept:
+        mix = renders[frozenset(task.clean)]
+        rendered = Rendered(mix=mix, others=mix, fault_stem=None, drum_bus=None, touched=None)
+    else:
+        picked = renders[frozenset(task.accept)]
+        others = renders.get(frozenset(task.others))
+        mix = picked + others if others is not None else picked
+        drum_bus = None
+        if task.fault.type == "polarity":
+            rest = renders.get(frozenset(set(task.drums) - task.accept))
+            drum_bus = picked + rest if rest is not None else picked
+        rendered = Rendered(mix=mix, others=others, fault_stem=picked, drum_bus=drum_bus, touched=None)
+    return _score(spec, task, diagnosis, rendered)
+
+
+def _score(spec: TaskSpec, task: _Task, diagnosis: object, rendered: Rendered) -> dict:
+    fault, clean, broken, sr, accept = task.fault, task.clean, task.broken, task.sr, task.accept
+    result = {**_header(spec), "invalid_mix_state": rendered.invalid_mix_state}
 
     # ---- detection
     expected = EXPECTED_VERDICT.get(fault.type, "fixed")
-    accept = acceptable_stems(fault, broken, sr)
     verdict, findings, result["invalid_diagnosis"] = read_diagnosis(diagnosis)
     hit = any(f["fault_type"] == fault.type and f["stem"] in accept for f in findings)
     false_findings = [f for f in findings if not (f["fault_type"] == fault.type and f["stem"] in accept)]
     detected = verdict == expected and (hit if fault.type != "control" else not findings)
 
     # ---- collateral: every stem that was clean must still be (nearly) the same
-    others = [n for n in clean if n not in accept]
-    others_db = _residual_db(_sum(processed, others), _sum(clean, others)) if others else -math.inf
-    touched = sorted(n for n in others if not state.tracks[n].is_neutral())
-    mix_after = engine.render()
+    others = task.others
+    others_db = _residual_db(rendered.others, _sum(clean, others)) if others else -math.inf
+    mix_after = rendered.mix
     result.update({
         "submitted": True,
         "verdict": verdict,
         "expected_verdict": expected,
         "detected": detected,
         "false_findings": len(false_findings),
-        "touched_other_stems": touched,
+        "touched_other_stems": rendered.touched,
         "others_residual_db": round(others_db, 1),
         "mix_residual_db": round(_residual_db(mix_after, audio.mix(clean)), 1),
         "mix_level_change_db": round(audio.gain_to_db(audio.rms(mix_after) / audio.rms(audio.mix(clean))), 2),
@@ -181,7 +276,7 @@ def grade(spec: TaskSpec, diagnosis: dict | None, mix_state: dict | None, songs_
     # ---- repair and pass
     others_ok = others_db <= UNTOUCHED_DB
     if fault.type in faults.FIXABLE:
-        result["repair"] = repair_score(fault, clean, broken, processed, sr)
+        result["repair"] = repair_score(fault, clean, broken, rendered, sr)
         result["pass"] = bool(detected and result["repair"]["score"] >= REPAIR_PASS and others_ok)
     else:
         # clipping and control: the right move is to leave the mix as it was handed over

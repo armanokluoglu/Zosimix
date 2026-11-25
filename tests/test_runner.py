@@ -108,7 +108,7 @@ def test_events_without_an_object_message_are_skipped(tmp_path):
         json.dumps({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "name": "Read", "input": {"file_path": "tasks/full.json"}}]}}),
     ]), encoding="utf-8")
-    assert runner.integrity_flags(transcript) == ["Read: tasks/full.json"]
+    assert runner.integrity_flags(transcript) == ["Read: tasks/full"]
 
 
 def test_ordinary_tool_results_are_not_flagged(isolated, monkeypatch):
@@ -187,3 +187,20 @@ def test_only_the_listed_tasks_run(isolated, monkeypatch):
     assert [r["task_id"] for r in results(isolated)] == ["t-002"]
     info = json.loads((isolated / "runs" / "r8" / "run_info.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert info["only_tasks"] == ["t-002"]
+
+
+def test_revised_task_sets_are_forbidden_too(tmp_path):
+    """D69 added tasks/full-v2.json; the scan matches task files by prefix."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "name": "Read", "input": {"file_path": "../../tasks/full-v2.json"}}]}}), encoding="utf-8")
+    assert runner.integrity_flags(transcript) == ["Read: tasks/full"]
+
+
+def test_a_tools_own_severity_label_is_not_ground_truth(tmp_path):
+    """flstudio-mcp's Mix Doctor reports "severity": "low"; ground truth stores a number (D70)."""
+    transcript = tmp_path / "t.jsonl"
+    lines = [{"type": "user", "message": {"content": [{"type": "tool_result", "content": text}]}}
+             for text in ['{"rule": "clipping", "severity": "high"}', '{"fault": {"severity": 2}}']]
+    transcript.write_text("\n".join(json.dumps(x) for x in lines), encoding="utf-8")
+    assert runner.integrity_flags(transcript) == [r'tool result: "severity":\s*\d']

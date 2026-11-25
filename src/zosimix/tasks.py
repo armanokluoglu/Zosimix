@@ -179,6 +179,21 @@ def load(set_name: str) -> list[TaskSpec]:
     return [TaskSpec(**t) for t in data["tasks"]]
 
 
+def faulty_stems(spec: TaskSpec, songs_root: Path = DATA_ROOT) -> tuple[dict[str, np.ndarray], int]:
+    """The song's clean stems with the task's fault baked into one of them: what the agent gets."""
+    song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
+    stems, sr, _ = song.load_clean_stems()
+    fault = faults.Fault(**spec.fault)
+    if fault.stem:
+        stems = {**stems, fault.stem: faults.apply(fault, stems[fault.stem], sr)}
+    return stems, sr
+
+
+def write_brief(spec: TaskSpec, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "brief.md").write_text(spec.brief + "\n", encoding="utf-8")
+
+
 def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT, target: dict | None = None) -> Path:
     """Build the agent's workspace for one task.
 
@@ -186,14 +201,11 @@ def materialize(spec: TaskSpec, dest: Path, songs_root: Path = DATA_ROOT, target
     count or name can't give away which stem was changed. `target` is the leave-one-out
     tonal target (targets.target_for): built from other songs only, so safe for the agent.
     """
-    song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
-    stems, sr, _ = song.load_clean_stems()
-    fault = faults.Fault(**spec.fault)
+    stems, sr = faulty_stems(spec, songs_root)
     stems_dir = dest / "stems"
-    for name, clean in stems.items():
-        out = faults.apply(fault, clean, sr) if name == fault.stem else clean
-        audio.write(stems_dir / f"{name}.wav", audio.to_stereo(np.asarray(out)), sr)
-    (dest / "brief.md").write_text(spec.brief + "\n", encoding="utf-8")
+    for name, a in stems.items():
+        audio.write(stems_dir / f"{name}.wav", audio.to_stereo(np.asarray(a)), sr)
+    write_brief(spec, dest)
     if target is not None:
         (dest / "tonal_target.json").write_text(json.dumps(target, indent=1), encoding="utf-8")
     return dest

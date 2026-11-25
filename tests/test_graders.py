@@ -142,3 +142,61 @@ def test_badly_formatted_false_alarm_still_fails_a_control(songs_root):
     control = faults.Fault("control", None, 0)
     r = graders.grade(spec(control), {"verdict": "no_fault", "findings": ["bass seems loud"]}, {}, songs_root)
     assert r["invalid_diagnosis"] and not r["pass"]
+
+
+def _group_renders(spec_, mix_state, songs_root):
+    """What FL's group renders would be, made with the offline engine: each group's processed
+    stems summed, everything else muted (D70)."""
+    from zosimix.engines.offline import OfflineEngine
+    from zosimix.songs import list_songs
+    stems, sr, _ = list_songs(songs_root)[0].load_clean_stems()
+    fault = faults.Fault(**spec_.fault)
+    if fault.stem:
+        stems[fault.stem] = faults.apply(fault, stems[fault.stem], sr)
+    engine = OfflineEngine(stems, sr)
+    engine.set_state(MixState.from_dict(mix_state))
+    processed = engine.render_stems()
+    return {g: graders._sum(processed, g) for g in graders.render_groups(spec_, songs_root)}
+
+
+@pytest.mark.parametrize("fault, ans, state", [
+    (GAIN, answer("fixed", "vox_lead", "gain"), {"vox_lead": {"gain_db": -6.0}}),
+    (GAIN, answer("fixed", "vox_lead", "gain"), {"vox_lead": {"gain_db": -6.0}, "bass": {"gain_db": 2.0}}),
+    (faults.Fault("polarity", "drums_overheads_1", 0), answer("fixed", "drums_overheads_2", "polarity"),
+     {"drums_overheads_2": {"polarity": True}}),
+    (faults.Fault("clipping", "vox_lead", 1, {"depth_db": 12.0}), answer("unfixable", "vox_lead", "clipping"), {}),
+    (faults.Fault("control", None, 0), answer("no_fault"), {}),
+    (faults.Fault("control", None, 0), answer("no_fault"), {"bass": {"pan": 0.4}}),
+])
+def test_grading_from_group_renders_matches_grading_a_mix_state(songs_root, fault, ans, state):
+    """The FL baseline is graded from renders of groups of tracks. Given exact renders, that
+    must give the same grade as the mix state would (apart from what renders can't tell)."""
+    s = spec(fault)
+    from_state = graders.grade(s, ans, state, songs_root)
+    from_renders = graders.grade_renders(s, ans, _group_renders(s, state, songs_root), songs_root)
+    for key in ("touched_other_stems", "invalid_mix_state"):
+        from_state.pop(key)
+        from_renders.pop(key)
+    assert _same_grade(from_renders, from_state)
+
+
+def _same_grade(a, b) -> bool:
+    """Equal, with numbers within rounding. Residuals below -100 dB count as silence: summing
+    two group renders leaves float noise (-240 dB) where one render would be exactly -inf."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same_grade(a[k], b[k]) for k in a)
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        if a <= -100 and b <= -100:
+            return True
+        return a == b or abs(a - b) <= 0.051
+    return a == b
+
+
+def test_render_groups_cover_every_stem_once(songs_root):
+    pol = spec(faults.Fault("polarity", "drums_overheads_1", 0))
+    groups = graders.render_groups(pol, songs_root)
+    assert len(groups) == 3                                                     # accepted mics, others, other drums
+    assert set().union(*groups[:2]) == {"drums_kick", "drums_overheads_1", "drums_overheads_2", "bass", "vox_lead"}
+    assert not groups[0] & groups[1]
+    assert graders.render_groups(spec(faults.Fault("control", None, 0)), songs_root) == [
+        frozenset({"drums_kick", "drums_overheads_1", "drums_overheads_2", "bass", "vox_lead"})]

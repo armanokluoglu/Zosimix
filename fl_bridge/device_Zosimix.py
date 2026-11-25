@@ -134,6 +134,34 @@ def _cmd_set_param(args):
     return [repr(plugins.getParamValue(param, track, slot))]
 
 
+def _cmd_get_mute(args):
+    return [str(int(mixer.isTrackMuted(int(args[0]))))]
+
+
+def _cmd_set_mute(args):
+    # Pass the value explicitly: on 20.9.2, muteTrack(track) alone doesn't toggle (like
+    # revTrackPolarity). The caller checks the read-back value.
+    track, want = int(args[0]), int(args[1])
+    mixer.muteTrack(track, want)
+    return [str(int(mixer.isTrackMuted(track)))]
+
+
+def _cmd_get_solo(args):
+    return [str(int(mixer.isTrackSolo(int(args[0]))))]
+
+
+def _cmd_set_solo(args):
+    track, want = int(args[0]), bool(int(args[1]))
+    if bool(mixer.isTrackSolo(track)) != want:
+        mixer.soloTrack(track)
+    return [str(int(mixer.isTrackSolo(track)))]
+
+
+def _cmd_stop(args):
+    transport.stop()
+    return [str(int(transport.isPlaying()))]
+
+
 def _cmd_song_mode(args):
     # The command-line render plays whatever mode the project was saved in. In pattern
     # mode that is one empty bar, so switch to song mode (setLoopMode toggles).
@@ -182,6 +210,11 @@ COMMANDS = {
     "param_count": _cmd_param_count,
     "param_info": _cmd_param_info,
     "set_param": _cmd_set_param,
+    "get_mute": _cmd_get_mute,
+    "set_mute": _cmd_set_mute,
+    "get_solo": _cmd_get_solo,
+    "set_solo": _cmd_set_solo,
+    "stop": _cmd_stop,
     "song_mode": _cmd_song_mode,
     "has": _cmd_has,
     "save": _cmd_save,
