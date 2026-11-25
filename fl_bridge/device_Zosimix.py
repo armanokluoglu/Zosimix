@@ -142,6 +142,21 @@ def _cmd_song_mode(args):
     return [str(transport.getLoopMode())]
 
 
+def _cmd_has(args):
+    # Which Python modules and FL API functions exist here: "1"/"0" per "module" or
+    # "module.function" (used to check what another FL script needs, D66).
+    out = []
+    for name in args:
+        module, _, attr = name.partition(".")
+        try:
+            found = __import__(module)
+            ok = hasattr(found, attr) if attr else True
+        except Exception:
+            ok = False
+        out.append("1" if ok else "0")
+    return out
+
+
 def _cmd_save(args):
     transport.globalTransport(midi.FPT_Save, 1)
     return ["saved"]
@@ -168,6 +183,7 @@ COMMANDS = {
     "param_info": _cmd_param_info,
     "set_param": _cmd_set_param,
     "song_mode": _cmd_song_mode,
+    "has": _cmd_has,
     "save": _cmd_save,
 }
 
