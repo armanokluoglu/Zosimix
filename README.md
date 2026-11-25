@@ -4,7 +4,7 @@
 
 Zosimix gives Claude a way to "hear" a multitrack mix through measurement tools. It lets Claude repair the problems it finds inside FL Studio, and it measures how well each repair worked. The test set is made of faults injected into professional multitrack recordings, so the correct answer is always known.
 
-> **Status:** early build. The design is complete. Day 1–2 spike in progress: can FL Studio be driven and rendered automatically?
+> **Status:** building (day 11 of the plan). The harness, the benchmark, the FL Studio engine and its parity check against the offline engine all work ([results/parity.md](results/parity.md)). The first full evaluation run is in progress.
 
 - [DESIGN.md](DESIGN.md): architecture, benchmark design, grading, and plan
 - [docs/decisions.md](docs/decisions.md): every design decision, with the alternatives considered and the reasons for the choice

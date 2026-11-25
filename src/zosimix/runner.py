@@ -37,11 +37,18 @@ from pathlib import Path
 from zosimix import graders, targets, tasks
 
 REPO = Path(__file__).resolve().parents[2]
-HOME = Path(os.environ.get("ZOSIMIX_HOME", Path(os.environ.get("LOCALAPPDATA", Path.home())) / "zosimix"))
+# Not under %LOCALAPPDATA%: the Claude desktop app redirects writes there into its own
+# sandbox folder, so runs started from the app and from a terminal would land in two
+# different places (D65). C:\zosimix is outside the repo, like before, and next to the FL root.
+HOME = Path(os.environ.get("ZOSIMIX_HOME", "C:/zosimix" if os.name == "nt" else Path.home() / "zosimix"))
 RUNS = HOME / "runs"
 WORKSPACES = HOME / "ws"       # kept apart from RUNS, so no "../.." from a workspace leads to grades (D51)
 BASELINE_PY = HOME / "baseline-venv" / "Scripts" / "python.exe"
+# The plain baseline's audio libraries: the same versions the harness itself uses (D65).
+BASELINE_PACKAGES = ["numpy==2.4.6", "scipy==1.17.1", "soundfile==0.14.0", "pyloudnorm==0.2.0", "pedalboard==0.9.26"]
 TIMEOUT_S = 20 * 60
+DEFAULT_MODEL = "claude-sonnet-5-5"   # headline numbers use Sonnet 5.5 (DESIGN §4.6); the full id, not the alias,
+                                      # so a later alias change can't silently mix models in one run
 SKILL_PATH = REPO / "skills" / "zosimix-diagnosis" / "SKILL.md"
 
 # Which parts of the Zosimix layer each configuration gets (D52). "zosimix" is the full layer;
@@ -119,8 +126,10 @@ def build_command(config: str, workspace: Path, model: str, prompt: str) -> list
               "--no-session-persistence", "--output-format", "stream-json", "--verbose", "--strict-mcp-config"]
     setup = CONFIGS[config]
     if setup["tools"] == "plain":
+        # --restricted confines the file tools to the workspace (Bash, named in --tools, stays
+        # available). An extra layer on top of the integrity scans, not a sandbox (D51, D65).
         tools = "Bash,Read,Write,Edit,Glob,Grep"
-        return [_claude(), *common, "--tools", tools, "--allowedTools", tools]
+        return [_claude(), *common, "--restricted", "--tools", tools, "--allowedTools", tools]
     mcp = {"mcpServers": {"zosimix": {"command": sys.executable,
                                       "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace)]}}}
     mcp_path = workspace.parent / "mcp.json"            # beside the workspace, not in it
@@ -263,6 +272,24 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     return row
 
 
+def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: int, model: str) -> None:
+    """Which code, model and settings produced this run, appended once per start or resume (D65).
+    A resume from different code shows up here as a second entry with another commit."""
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True,
+                            check=False).stdout.strip()
+    dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPO,
+                                capture_output=True, text=True, check=False).stdout.strip())
+    entry = {"started": dt.datetime.now().isoformat(timespec="seconds"), "commit": commit,
+             "uncommitted_changes": dirty, "set": set_name, "configs": configs, "repeats": repeats,
+             "model": model, "claude_cli": None}
+    exe = shutil.which("claude")
+    if exe:
+        entry["claude_cli"] = subprocess.run([exe, "--version"], capture_output=True, text=True,
+                                             check=False).stdout.strip()
+    with open(run_dir / "run_info.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
 def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str | None) -> Path:
     run_id = run_id or f"{dt.datetime.now():%Y%m%d-%H%M}-{set_name}"
     run_dir = RUNS / run_id
@@ -275,13 +302,19 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
             if r["status"] == "done":
                 done.add((r["task_id"], r["config"], r["repeat"]))
     if "plain" in configs and not BASELINE_PY.exists():
-        sys.exit(f"baseline Python not found at {BASELINE_PY}; create it first (see README)")
+        venv = BASELINE_PY.parents[1]
+        sys.exit(f"baseline Python not found at {BASELINE_PY}. Create it (D65):\n"
+                 f"  py -3.11 -m venv {venv}\n"
+                 f"  {BASELINE_PY} -m pip install {' '.join(BASELINE_PACKAGES)}")
     specs = tasks.load(set_name)
     profiles = targets.load_profiles()
+    _record_run_info(run_dir, set_name, configs, repeats, model)
     print(f"run {run_id}: {len(specs)} tasks x {configs} x {repeats} repeat(s); {len(done)} already done")
-    for spec in specs:
-        for config in configs:
-            for repeat in range(1, repeats + 1):
+    # Repeats outermost: every task gets its first run before any task gets a second, so a
+    # run cut short by a usage limit still holds one complete pass over the set (D65).
+    for repeat in range(1, repeats + 1):
+        for spec in specs:
+            for config in configs:
                 if (spec.task_id, config, repeat) in done:
                     continue
                 print(f"  {spec.task_id} [{config} #{repeat}] ...", end=" ", flush=True)
@@ -332,7 +365,7 @@ def main() -> None:
     r.add_argument("--set", required=True)
     r.add_argument("--config", action="append", choices=list(CONFIGS), required=True)
     r.add_argument("--repeats", type=int, default=1)
-    r.add_argument("--model", default="sonnet")
+    r.add_argument("--model", default=DEFAULT_MODEL)
     r.add_argument("--run", dest="run_id", help="resume this run id")
     p = sub.add_parser("report")
     p.add_argument("--run", dest="run_id", required=True)
