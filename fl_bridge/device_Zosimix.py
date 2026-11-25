@@ -67,6 +67,25 @@ def _cmd_set_polarity(args):
     return [str(int(mixer.isTrackRevPolarity(int(args[0]))))]
 
 
+def _cmd_get_sep(args):
+    return [repr(mixer.getTrackStereoSep(int(args[0])))]
+
+
+def _cmd_set_sep(args):
+    mixer.setTrackStereoSep(int(args[0]), float(args[1]))
+    return [repr(mixer.getTrackStereoSep(int(args[0])))]
+
+
+def _cmd_get_name(args):
+    return [mixer.getTrackName(int(args[0])).replace(" ", "_") or "-"]
+
+
+def _cmd_set_name(args):
+    # Names arrive without spaces (they are split on spaces); underscores are kept as-is.
+    mixer.setTrackName(int(args[0]), args[1] if len(args) > 1 else "")
+    return [mixer.getTrackName(int(args[0])).replace(" ", "_") or "-"]
+
+
 def _cmd_plugin_name(args):
     track, slot = int(args[0]), int(args[1])
     if not plugins.isValid(track, slot):
@@ -109,6 +128,10 @@ COMMANDS = {
     "set_pan": _cmd_set_pan,
     "get_polarity": _cmd_get_polarity,
     "set_polarity": _cmd_set_polarity,
+    "get_sep": _cmd_get_sep,
+    "set_sep": _cmd_set_sep,
+    "get_name": _cmd_get_name,
+    "set_name": _cmd_set_name,
     "plugin_name": _cmd_plugin_name,
     "param_count": _cmd_param_count,
     "param_info": _cmd_param_info,
