@@ -1,5 +1,7 @@
 # Building the Zosimix24 FL template (one time, about 15 minutes)
 
+**Shortcut:** a built copy is committed as `fl_bridge/Zosimix24.flp`. Copy it to `C:\zosimix\fl\Zosimix24.flp`, create the placeholders (below), and skip to "If the bridge doesn't answer". The steps below explain how it was built.
+
 FL Studio's scripting API can't load audio or open projects, so FL needs one project built by hand. Every song uses this same project: the harness swaps the audio files it points to before FL opens it (D55).
 
 The finished project has:
@@ -34,3 +36,8 @@ The finished project has:
    - Or restart FL.
 
 Then tell Claude it's done. Leave FL open with this project: the next step reads FL's own value ranges through the bridge.
+
+## If the bridge doesn't answer
+Open **Options → MIDI settings**.
+- **Input:** `Zosimix In` is enabled, its controller type is **Zosimix Bridge (user)**, and its port number is set (for example 200).
+- **Output:** `Zosimix Out` has that **same** port number. `Zosimix In` in the output list must have **no** port number. If it has one, FL sends replies back into its own input instead of to Claude (D56).

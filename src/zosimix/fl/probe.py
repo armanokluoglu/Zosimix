@@ -24,18 +24,24 @@ from zosimix.fl.bridge import Bridge, BridgeError
 OUT = Path(__file__).resolve().parents[3] / "fl_bridge" / "calibration" / "probe.json"
 TRACK, SLOT = 1, 0
 STEPS = np.linspace(0.0, 1.0, 41)
+BIPOLAR = np.linspace(-1.0, 1.0, 41)    # pan and stereo separation run -1..+1, centre 0
 
 
-def sweep_mixer(fl: Bridge, setter: str, getter: str, reader: str | None = None) -> list[list]:
-    """Positions and what FL reports for each. `reader` is an extra getter (e.g. dB)."""
+def sweep_mixer(fl: Bridge, setter: str, getter: str, reader: str | None = None,
+                positions: np.ndarray = STEPS, tol: float = 1e-3) -> list[list]:
+    """Positions and what FL reports for each. `reader` is an extra getter (e.g. dB).
+
+    `tol` is how far FL may snap a value. Stereo separation moves in steps of 1/32, so it
+    needs a looser tolerance than the fader and pan.
+    """
     original = float(fl.call(getter, TRACK)[0])
     rows = []
     try:
-        for x in STEPS:
-            held = fl.set_and_confirm(setter, getter, TRACK, float(x), tol=1e-3)
+        for x in positions:
+            held = fl.set_and_confirm(setter, getter, TRACK, float(x), tol=tol)
             rows.append([round(float(x), 4), held, *(fl.call(reader, TRACK) if reader else [])])
     finally:
-        fl.set_and_confirm(setter, getter, TRACK, original, tol=1e-3)
+        fl.set_and_confirm(setter, getter, TRACK, original, tol=tol)
     return rows
 
 
@@ -60,13 +66,13 @@ def main() -> None:
     with Bridge() as fl:
         print("FL:", fl.ping())
         plugin = fl.call("plugin_name", TRACK, SLOT)[0]
-        if "Parametric" not in plugin:
+        if "parametric" not in plugin.lower():          # FL reports "Fruity parametric EQ 2"
             raise SystemExit(f"insert {TRACK} slot {SLOT} holds {plugin!r}, expected Fruity Parametric EQ 2")
         result: dict = {"plugin": plugin}
         result["volume"] = sweep_mixer(fl, "set_volume", "get_volume", "get_volume_db")
-        result["pan"] = sweep_mixer(fl, "set_pan", "get_pan")
+        result["pan"] = sweep_mixer(fl, "set_pan", "get_pan", positions=BIPOLAR)
         try:
-            result["stereo_sep"] = sweep_mixer(fl, "set_sep", "get_sep")
+            result["stereo_sep"] = sweep_mixer(fl, "set_sep", "get_sep", positions=BIPOLAR, tol=0.02)
         except BridgeError as exc:          # older API without stereo separation
             result["stereo_sep"] = f"unavailable: {exc}"
         result["peq2"] = sweep_plugin(fl)

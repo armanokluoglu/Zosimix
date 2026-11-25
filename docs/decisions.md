@@ -302,3 +302,29 @@ Format: **D## — Title** · date · status (`accepted` / `superseded by D##`)
   - 4 of 31 clean family levels already read as outliers (|z| > 2), a false-alarm risk on control tasks.
 - *Decision:* removed completely, including the tool, the skill text and the target fields. With only 6 reference songs, a level reference is weak and sometimes misleading evidence. Revisit only if the song pool grows substantially. Write-up: `results/smoke-3.md`.
 - *Consequence:* gain faults, especially small ones, stay a judgement call based on peer stems. That is an honest limitation of "restore the intended balance" without a reference.
+
+**D55 — One generic 24-slot FL template, at a fixed path** · 2026-11-25 · accepted
+- *Change from DESIGN.md §4.4:* instead of one hand-built FL project per song, there is one project, `C:\zosimix\fl\Zosimix24.flp`. Its 24 audio clips point at `C:\zosimix\fl\slots\slot01.wav` .. `slot24.wav`, clip N is routed to mixer insert N, and Fruity Parametric EQ 2 sits in the first effect slot of every insert. Build guide: `fl_bridge/TEMPLATE.md`.
+- *How a song gets in:* the harness overwrites the slot WAVs before FL opens the project (`zosimix.fl.slots.write_song`), then names and sets the inserts through the bridge. Unused slots get 1 s of silence. We still never edit `.flp` files (D14).
+- *Why:* the owner builds the template once instead of seven times, and every song gets the same routing and plugin layout, so one calibration covers all of them.
+- *Why a fixed path:* the project stores absolute file paths. `C:\zosimix\fl` has no spaces (FL's command-line render can't handle them) and no user name (the template is committed to a public repo).
+- *Limit:* 24 stems at most, which is the largest song in the pool. The placeholders are 300 s, longer than any song (243 s at most), so every clip is long enough.
+
+**D56 — Separate SysEx headers for requests and replies** · 2026-11-25 · accepted
+- *Found:* after the template was built, FL's MIDI settings had both loopMIDI outputs ("Zosimix In" and "Zosimix Out") on port 200. FL sent its replies to "Zosimix In", loopMIDI fed them straight back into the script, and the script answered each with `err unknown_command`, which looped again. That's about 3,800 messages a second, and nothing reached the client.
+- *Fix in code:* requests keep `7D 5A` ('Z') and replies now use `7D 7A` ('z'). The script drops anything with the reply header, so a misrouted reply dies instead of feeding back.
+- *Fix in FL:* only the "Zosimix Out" output may carry the bridge's port number. `fl_bridge/TEMPLATE.md` now says so.
+- *Also found:* the first message on a freshly opened connection is often lost (3 of 4 new connections lost their first ping; every later message arrived). `Bridge` now pings when it connects, with a 0.5 s timeout and up to 5 tries, before returning. A late reply to an earlier ping carries an old id and is ignored.
+
+**D57 — FL's value scales, read by the probe** · 2026-11-25 · accepted (data: `fl_bridge/calibration/probe.json`)
+These are what FL 20.9.2 *reports* for each knob position. What the knobs do to the sound is measured separately with renders (calibration step 2).
+- *Fader:* position 0.8 is 0 dB, and 1.0 is +5.59 dB, the most the fader can boost. The curve isn't a simple formula, so the engine inverts it from the 41-point table and then fine-tunes against FL's own dB readout (`get_volume_db`). Boost above +5.59 dB goes on PEQ2's main level (D43).
+- *Pan:* -1..+1, continuous, and FL holds exactly what is set.
+- *Stereo separation:* -1..+1 in steps of 1/64, so values snap by up to about 0.008. Which direction narrows and which widens is left to the renders.
+- *Parametric EQ 2 (36 parameters):*
+  - Parameters 0–6 are the band levels and 35 is the main level. All are linear, ±18 dB, with 0.5 = 0 dB.
+  - Parameters 7–13 are the band frequencies, logarithmic: Hz = 20 · 1000^x.
+  - Parameters 14–20 are the band widths, shown as 0–100%. Their relation to Q is left to the renders.
+  - Parameters 21–27 are the band types, in steps of 1/7: Disabled, Low pass, Band pass, High pass, Notch, Low shelf, Peaking, High shelf.
+  - Parameters 28–34 are the band orders (slopes), in steps of 1/6: Steep 8, Steep 6, Steep 4, 2 (default), Gentle 4, Gentle 6, Gentle 8.
+- *Defaults:* band 1 is a low shelf, bands 2–6 are peaking, and band 7 is a high shelf, all at 0 dB. A band whose type is "Disabled" does nothing, which gives the engine a clean "unused band".

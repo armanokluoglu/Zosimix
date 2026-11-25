@@ -9,9 +9,13 @@ and replies. All the real logic lives in the external Zosimix code.
 
 Transport: MIDI SysEx over two loopMIDI virtual ports.
   request : F0 7D 5A <ascii text> F7     (7D = "non-commercial" manufacturer ID, 5A = 'Z')
-  reply   : F0 7D 5A <ascii text> F7
+  reply   : F0 7D 7A <ascii text> F7     (7A = 'z')
 Text format: "<id> <command> <args...>" -> "<id> ok <values...>" or "<id> err <message>".
 The id lets the client match replies to requests.
+
+Requests and replies use different headers on purpose (D56). If FL's MIDI settings send
+our replies back into our own input, the script ignores them instead of answering each
+one with an error, which used to feed back forever.
 
 Indices follow FL's API: mixer track 0 is Master, 1.. are inserts; slot 0 is the
 first effect slot; parameter values are normalized floats in 0..1.
@@ -24,11 +28,12 @@ import mixer
 import plugins
 import transport
 
-HEADER = bytes([0xF0, 0x7D, 0x5A])
+REQUEST = bytes([0xF0, 0x7D, 0x5A])
+REPLY = bytes([0xF0, 0x7D, 0x7A])
 
 
 def _reply(text):
-    device.midiOutSysex(HEADER + text.encode("ascii", "replace") + bytes([0xF7]))
+    device.midiOutSysex(REPLY + text.encode("ascii", "replace") + bytes([0xF7]))
 
 
 def _cmd_ping(args):
@@ -146,10 +151,13 @@ def OnInit():
 
 def OnSysEx(event):
     data = bytes(event.sysex)
-    if not data.startswith(HEADER):
+    if data.startswith(REPLY):
+        event.handled = True                      # our own reply looped back: drop it silently
+        return
+    if not data.startswith(REQUEST):
         return                                    # not ours: let FL handle it
     event.handled = True
-    parts = data[len(HEADER):-1].decode("ascii", "replace").split()
+    parts = data[len(REQUEST):-1].decode("ascii", "replace").split()
     if len(parts) < 2:
         return
     req_id, name, args = parts[0], parts[1], parts[2:]

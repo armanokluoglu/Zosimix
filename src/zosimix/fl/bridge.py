@@ -19,7 +19,8 @@ from __future__ import annotations
 import time
 from typing import Self
 
-HEADER = [0x7D, 0x5A]          # mido strips F0/F7; 7D = non-commercial ID, 5A = 'Z'
+REQUEST = [0x7D, 0x5A]         # mido strips F0/F7; 7D = non-commercial ID, 5A = 'Z'
+REPLY = [0x7D, 0x7A]           # 7A = 'z'; distinct so FL never mistakes a reply for a request (D56)
 IN_PORT, OUT_PORT = "Zosimix In", "Zosimix Out"
 
 
@@ -36,6 +37,28 @@ class Bridge:
         self.out = mido.open_output(self._find(mido.get_output_names(), IN_PORT))
         self.inp = mido.open_input(self._find(mido.get_input_names(), OUT_PORT))
         self.next_id = 0
+        self._handshake()
+
+    def _handshake(self, tries: int = 5) -> None:
+        """Ping until FL answers. The first message on freshly opened ports is often lost.
+
+        Measured: 3 of 4 new connections lost their first ping, and every later message
+        arrived. A late reply to an earlier ping carries an old id, so `call` ignores it.
+        """
+        full = self.timeout_s
+        self.timeout_s = 0.5
+        try:
+            for _ in range(tries):
+                try:
+                    self.call("ping")
+                    return
+                except BridgeError:
+                    continue
+        finally:
+            self.timeout_s = full
+        self.close()
+        raise BridgeError(f"FL didn't answer {tries} pings (is FL open with the Zosimix script, "
+                          "and do its MIDI ports match fl_bridge/TEMPLATE.md?)")
 
     @staticmethod
     def _find(names: list[str], prefix: str) -> str:
@@ -60,11 +83,11 @@ class Bridge:
         self.next_id += 1
         req_id = str(self.next_id)
         text = " ".join([req_id, command, *map(str, args)])
-        self.out.send(self._mido.Message("sysex", data=HEADER + list(text.encode("ascii"))))
+        self.out.send(self._mido.Message("sysex", data=REQUEST + list(text.encode("ascii"))))
         deadline = time.perf_counter() + self.timeout_s
         while time.perf_counter() < deadline:
             for msg in self.inp.iter_pending():
-                if msg.type != "sysex" or list(msg.data[:2]) != HEADER:
+                if msg.type != "sysex" or list(msg.data[:2]) != REPLY:
                     continue
                 parts = bytes(msg.data[2:]).decode("ascii", "replace").split()
                 if parts and parts[0] == req_id:
