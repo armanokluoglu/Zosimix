@@ -164,7 +164,9 @@ def integrity_flags(transcript: Path) -> list[str]:
             msg = json.loads(line)
         except json.JSONDecodeError:
             continue
-        content = msg.get("message", {}).get("content", [])
+        # Not every event has an object-shaped "message": a permission_denied event's is a string.
+        message = msg.get("message") if isinstance(msg, dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, list):
             continue
         for block in content:

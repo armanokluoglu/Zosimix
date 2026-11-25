@@ -97,6 +97,20 @@ def test_ground_truth_in_a_tool_result_is_flagged_however_it_was_reached(isolate
     assert flags and all(f.startswith("tool result") for f in flags)     # the path itself matched nothing
 
 
+def test_events_without_an_object_message_are_skipped(tmp_path):
+    """A real event from full-1: permission_denied carries "message" as a string. It used to
+    crash the scan, which stopped the whole run."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("\n".join([
+        json.dumps({"type": "system", "subtype": "permission_denied", "tool_name": "Bash",
+                    "message": "Permission to use Bash has been denied because Claude Code is running in don't ask mode."}),
+        json.dumps(["not", "an", "object"]),
+        json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "tasks/full.json"}}]}}),
+    ]), encoding="utf-8")
+    assert runner.integrity_flags(transcript) == ["Read: tasks/full.json"]
+
+
 def test_ordinary_tool_results_are_not_flagged(isolated, monkeypatch):
     monkeypatch.setattr(runner, "build_command", fake({"diagnosis": {"verdict": "no_fault", "findings": []},
                                                        "mix_state": {}, "seen": "bass: -18.2 LUFS, severity looks mild"}))
