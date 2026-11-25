@@ -441,3 +441,9 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Fix:* the scan skips any event whose `message` isn't an object (test added with the real event). It changes no flag that was raised before.
 - *Is dontAsk handicapping the plain baseline?* No: 1 refused command in 36 plain transcripts. It was an unusual command that tried two Pythons in a row, and the agent carried on another way.
 - *Provenance:* the resumed part runs from the fix commit; `run_info.jsonl` records both commits.
+
+**D68 — full-1 results** · 2026-11-25 · accepted
+- *Result:* the harness (`zosimix`) passed 42/90 runs (47%), plain Claude Code 27/90 (30%), on Sonnet 5.5 over 30 tasks × 3 repeats. Without the three smoke-overlap tasks it is 36/81 against 23/81. By task, the harness did better on 9 and worse on 2 (sign test p ≈ 0.065). The harness also changed healthy stems far less often (11 runs against 30). Full page: `results/full-1.md`.
+- *Where the gap comes from:* clipping (12/12 against 4/12), gain (4/12 against 0/12) and polarity (8/15 against 5/15). Pan and the no-fault controls are about even.
+- *Benchmark finding:* mud (0/15 each) and resonance (0/12 each) are at the floor for both configs. On mud, the harness answered `no_fault` every time, because the injected 1.2–2.1 dB band-shape errors look like normal variation to its tools. Until either the fault sizes or the tools change, these two families can't separate configs. Which one to change is open, and a generator change would be called out as an eval-integrity change.
+- *How the numbers are reported:* Wilson intervals over runs, labelled as overstating certainty because repeats are correlated, plus the paired sign test by task.
