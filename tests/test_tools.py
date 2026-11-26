@@ -126,7 +126,7 @@ def test_mcp_server_exposes_all_tools_and_calls_them(target):
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
     assert {"overview", "spectrum", "phase", "commit_changes", "submit_diagnosis", "set_eq_band"} <= names
-    assert len(names) == 16
+    assert len(names) == 17
     result = asyncio.run(server.call_tool("overview", {}))
     assert "MIX" in str(result)
 
@@ -202,6 +202,13 @@ def test_ablation_switches_add_and_remove_tools():
     def names(**kw):
         return {t.name for t in asyncio.run(build_server(session_with(None), **kw).list_tools())}
     full = names()
-    assert {"triage", "scan"} <= full and "spectrogram" not in full
+    assert {"triage", "scan", "spectrogram"} <= full                      # the picture is default since D81
     assert not {"triage", "scan"} & names(triage_tools=False)
-    assert "spectrogram" in names(spectrogram_tool=True)
+    assert "spectrogram" not in names(spectrogram_tool=False)
+
+
+def test_one_pan_suspect_is_fixed_several_mean_a_deliberate_arrangement():
+    """D81: an injected pan fault makes exactly one suspect; songs that pan mono parts on purpose show several."""
+    from zosimix.tools import MixSession
+    assert MixSession._pan_verdict(1).endswith("fix it")
+    assert "deliberate" in MixSession._pan_verdict(2)

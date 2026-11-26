@@ -24,8 +24,8 @@ You are standing in for a mix engineer. Your job is to find what is genuinely wr
 | "too loud" / "can barely hear X" | level of a stem in that family | overview LUFS vs peers, MIX `tonal_balance` |
 | "lopsided", "leans to one side" | pan of a stem that belongs in the centre | overview bal(R−L) and corr |
 | "thin", "lacks punch" (drums) | polarity of one drum mic | `phase` |
-| "muddy", "boxy" | broad low-mid excess (about 150–500 Hz) | `scan` with measure "lowmid" |
-| "harsh", "ringy", "whistling" | a narrow resonance | `scan` with measure "peaks" and the family named in the note |
+| "muddy", "boxy" | broad low-mid excess (about 150–500 Hz) | `scan` with measure "lowmid", then `spectrogram` on the top suspect |
+| "harsh", "ringy", "whistling" | a narrow resonance | `scan` with measure "peaks" and the family named in the note, then `spectrogram` on the top suspects |
 | "distorted", "crunchy" | clipping baked into a recording | overview clips/min |
 | "check it over" | possibly nothing | everything, with a high bar |
 
@@ -35,13 +35,21 @@ With no note, run through all of these anyway. Polarity (`phase`) and clipping (
 
 - **These almost always sit in the centre:** bass, kick, snare, and the lead vocal. If one of them is mono or nearly mono (corr above about 0.95) and its balance is more than about 1 dB off centre, it is very likely a pan fault, even if the lean looks deliberate.
 - **These are often off-centre on purpose:** guitars, keys, backing vocals, percussion, horns, strings, effects, and room or overhead mics. Leave their placement alone. The exception is a stem named as one half of a pair (`_l`/`_r`, `_1`/`_2`): if one half is badly out of line with the other, that one is the suspect.
-- **A mono stem off centre with no twin is a mistaken pan.** A stem whose two channels are the same signal (corr 0.99 or more) but sit at different levels, with no `_l`/`_r` partner, was panned by mistake: parts panned on purpose are stereo or come in pairs. `triage` and `scan` "pan" list exactly these. Re-centre such a stem even without a note, using the pan value they give. Leave every other stem's placement alone.
+- **A single mono stem off centre with no twin is a mistaken pan.** `triage` and `scan` "pan" list stems whose two channels are the same signal (corr 0.99 or more) at different levels, with no `_l`/`_r` partner. When exactly one stem looks like this (marked "fix it"), it was panned by mistake: re-centre it even without a note, using the pan value given. When several do, the arrangement pans mono parts on purpose: change one only if the client says the image is lopsided, and then only the one that leans the way they describe, or the furthest out. Leave every other stem's placement alone.
 - **Real mixes don't match the target exactly.** In `tonal_balance`, a z-score within ±2 is normal variety. A single stem's band at about ±2.5 is still common. Look for a clear outlier that the rest of the evidence agrees with.
 - **Natural resonances exist.** Guitar bodies, drum shells and vocal formants show up as persistent bumps in clean recordings. A bump is a fault only if it is clearly stronger than the stem's other bumps, and it lines up with the symptom or an outlying band.
 
+## Reading a spectrogram
+
+`spectrogram` returns a picture of one stem: time runs left to right, frequency bottom to top on a log scale, and brightness is loudness. Faint horizontal lines mark 100 Hz, 1 kHz and 10 kHz. Look at it to confirm a suspect before you change anything, and again after the fix:
+
+- **An EQ resonance** is a thin bright horizontal line that stays at one frequency for the whole song, through every note and hit. A natural resonance (a drum shell, a guitar body) usually comes and goes with the notes, or changes with pitch. If `scan` points at two stems in the same family, the one whose bump shows as a steady line is the fault.
+- **Mud** is a band low down (roughly 150–500 Hz) that's brighter than the same region in its family's other stems, all the way through.
+- **After a cut**, the line or band should be gone, without a dark gap where it was. A dark gap means you cut too much.
+
 ## Fixing each kind of problem
 
-- **Level between twins.** `triage` lists `_l`/`_r` twins whose loudness differs by more than 5 LU: doubled parts are normally balanced, so one twin is off. With a level note ("too loud", "can barely hear"), the twin on that side of its partner is the one to fix; with no note, take the one `triage` names as likelier off, but only when the gap is large (8 LU or more). Set its gain so it matches its twin's loudness, and no further.
+- **Level between twins.** `triage` lists `_l`/`_r` twins whose loudness differs by more than 5 LU: doubled parts are normally balanced, so one twin is off. With a level note ("too loud", "can barely hear"), the twin on that side of its partner is the one to fix; with no note, take the one `triage` names as likelier off (it compares each twin with the family's other non-lead parts), but only when the gap is large (8 LU or more). Set its gain so it matches its twin's loudness, and no further.
 - **Level.** First decide where the stem *should* sit. Compare it with its peers in the song (the other guitars, the other vocals, the other drum mics). Also check whether the MIX band it dominates is off target in `tonal_balance`. Move it in one step towards that point, then check again. When you are unsure between two amounts, choose the smaller: overshooting is as wrong as undershooting.
 - **Pan.** `set_pan` is a balance control. To bring a stem whose balance (R−L) is *b* dB back to the centre, use `pan = (4/π)·atan(10^(−b/20)) − 1`. For example, b = −4.3 gives pan ≈ +0.30. Re-centring with a balance control also lowers the stem's level, so after committing, raise its gain until its LUFS is back to what it was before the pan move.
 - **Polarity.** A drum stem whose flip value is about +1 dB or more (`triage` lists them; `phase` gives the detail) is fighting the rest of the kit. Invert that one stem, even if the client said nothing about the drums: a polarity flip is a measurable fault, not a matter of taste. If both mics of a pair show it, invert the one with the larger flip value. A small flip value means leave it alone: some mics, such as a snare bottom mic, are naturally opposed.

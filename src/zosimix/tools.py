@@ -230,11 +230,25 @@ class MixSession:
         mix = self._mix_metrics()
         lines = [(f"MIX balance (R-L) {mix['balance_db']:+.2f} dB. Mono stems (corr >= {PAN_MONO_CORR}) more than"
                  f" {PAN_MIN_DB} dB off centre with no _l/_r twin (a mistaken pan looks like this):")]
-        suspects = self._pan_suspects(names)
-        lines += [f"{n}: balance {b:+.1f} dB, centre with pan {self._pan_to_centre(b):+.2f}" for n, b in suspects]
+        suspects = self._pan_suspects(self.engine.stem_names)
+        verdict = self._pan_verdict(len(suspects))
+        lines += [f"{n}: balance {b:+.1f} dB, centre with pan {self._pan_to_centre(b):+.2f} ({verdict})"
+                  for n, b in suspects if n in names]
         if not suspects:
             lines.append("none")
         return "\n".join(lines)
+
+    @staticmethod
+    def _pan_verdict(n_suspects: int) -> str:
+        """Fix a pan suspect without a note only when it is the only one (D81).
+
+        In 8 of the 9 benchmark and dev songs no clean stem has the mistaken-pan signature; in the
+        ninth, two mono parts (toms and an acoustic guitar) are panned on purpose. An injected pan
+        fault always makes exactly one suspect. Several mono parts off centre means the arrangement
+        pans mono parts deliberately, and then a pan is only a fault if the client says so."""
+        if n_suspects == 1:
+            return "the only one: fix it"
+        return f"one of {n_suspects}: probably a deliberate arrangement, only with a lopsided note"
 
     @staticmethod
     def _pan_to_centre(balance_db: float) -> float:
@@ -248,7 +262,7 @@ class MixSession:
         polarity tasks on full-v2 while passing the ones with a note (D74). This runs them all."""
         metrics = self._stem_metrics()
         names = self.engine.stem_names
-        lines = ["TRIAGE (act on clipping, polarity and pan without a note; level, mud and resonance need a matching note or clear evidence, see the skill)"]
+        lines = ["TRIAGE (act on clipping, polarity, and a pan marked 'fix it', without a note; the rest need a matching note or clear evidence, see the skill)"]
         clips = sorted(((metrics[n]["clips_per_min"], n) for n in names), reverse=True)
         typical = float(np.median([c for c, _ in clips])) if clips else 0.0
         hot = [f"{n} {c:.0f}/min" for c, n in clips[:3] if c >= max(10.0, 10 * typical)]
@@ -264,8 +278,10 @@ class MixSession:
         else:
             lines.append("polarity: fewer than 2 drum stems, nothing to compare")
         pans = self._pan_suspects(names)
+        verdict = self._pan_verdict(len(pans))
         lines.append("pan (mono, off centre, no twin): " + (", ".join(
-            f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f}" for n, b in pans) if pans else "none"))
+            f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f}" for n, b in pans) + f" ({verdict})"
+            if pans else "none"))
         lines.append(f"level (_l/_r twins more than {TWIN_GAP_LU:.0f} LU apart): " + self._twin_gaps(metrics))
         mud = self._scan_lowmid(names).splitlines()[1:3]
         lines.append("mud suspects (only with a muddy/boxy note): " + " | ".join(mud))
@@ -288,9 +304,12 @@ class MixSession:
             la, lb = metrics[a]["lufs"], metrics[b]["lufs"]
             if not (math.isfinite(la) and math.isfinite(lb)) or abs(la - lb) <= TWIN_GAP_LU:
                 continue
+            # Lead parts are left out: a lead vocal or guitar is meant to be louder than the rest
+            # of its family, and including it picked the wrong twin of a backing-vocal pair (D81).
             peers = [metrics[n]["lufs"] for n in self.engine.stem_names
-                     if family_of(n) == family_of(a) and n not in (a, b) and math.isfinite(metrics[n]["lufs"])]
-            if len(peers) >= 2:
+                     if family_of(n) == family_of(a) and n not in (a, b) and "lead" not in n.lower()
+                     and math.isfinite(metrics[n]["lufs"])]
+            if peers:
                 median = float(np.median(peers))
                 odd = a if abs(la - median) > abs(lb - median) else b
                 hint = f"; likelier off: {odd}"

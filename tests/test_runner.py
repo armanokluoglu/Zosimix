@@ -218,7 +218,7 @@ def test_parallel_workers_write_one_row_per_run(isolated, monkeypatch):
 
 
 @pytest.mark.parametrize("config, flag", [("zosimix-noverify", "--no-verify"), ("zosimix-notriage", "--no-triage"),
-                                          ("zosimix-spectrogram", "--spectrogram")])
+                                          ("zosimix-nospectrogram", "--no-spectrogram")])
 def test_ablation_configs_pass_their_switch_to_the_server(tmp_path, monkeypatch, config, flag):
     monkeypatch.setattr(runner, "_claude", lambda: "claude")
     ws = tmp_path / "work" / "ws"

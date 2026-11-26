@@ -3,7 +3,7 @@
 The tool descriptions below are what the agent reads, so they are written for it.
 
 Run (normally started by Claude Code from an MCP config, one server per task workspace):
-    python -m zosimix.mcp_server --workspace <task workspace> [--no-verify] [--no-triage] [--spectrogram]
+    python -m zosimix.mcp_server --workspace <task workspace> [--no-verify] [--no-triage] [--no-spectrogram]
 
 The flags switch parts on or off for the ablations (DESIGN.md §5, D78).
 
@@ -24,7 +24,7 @@ from zosimix.tools import MixSession
 
 INSTRUCTIONS = """\
 You are repairing a multitrack mix you cannot hear. These tools measure it for you.
-Workflow: triage -> overview -> investigate suspicious stems (scan, spectrum, compare, phase, tonal_balance)
+Workflow: triage -> overview -> investigate suspicious stems (scan, spectrogram, spectrum, compare, phase, tonal_balance)
 -> make changes with set_* -> commit_changes (applies them and reports what moved)
 -> re-measure if needed -> submit_diagnosis once. Measurements always describe the
 committed mix. Make the smallest change that fixes the problem; leave healthy stems alone.
@@ -32,9 +32,9 @@ Some problems (e.g. clipping baked into a recording) cannot be fixed with these 
 report them with verdict "unfixable" instead of changing anything."""
 
 
-def build_server(session: MixSession, triage_tools: bool = True, spectrogram_tool: bool = False) -> MCPServer:
+def build_server(session: MixSession, triage_tools: bool = True, spectrogram_tool: bool = True) -> MCPServer:
     """All the agent's tools. triage_tools=False leaves out triage and scan, and spectrogram_tool=True adds
-    the spectrogram picture: both are ablation switches (D78)."""
+    the spectrogram picture (part of the default harness since D81): both are ablation switches (D78)."""
     instructions = INSTRUCTIONS if triage_tools else INSTRUCTIONS.replace("triage -> ", "").replace("scan, ", "")
     server = MCPServer(name="zosimix", instructions=instructions)
 
@@ -161,13 +161,13 @@ def main() -> None:
     ap.add_argument("--workspace", type=Path, required=True)
     ap.add_argument("--no-verify", action="store_true", help="ablation: commit_changes reports nothing")
     ap.add_argument("--no-triage", action="store_true", help="ablation: leave out the triage and scan tools")
-    ap.add_argument("--spectrogram", action="store_true", help="ablation: add the spectrogram picture tool")
+    ap.add_argument("--no-spectrogram", action="store_true", help="ablation: leave out the spectrogram picture")
     args = ap.parse_args()
     target_path = args.workspace / "tonal_target.json"
     target = json.loads(target_path.read_text(encoding="utf-8")) if target_path.exists() else None
     session = MixSession(OfflineEngine.from_workspace(args.workspace), target,
                          output_dir=args.workspace / "output", verify=not args.no_verify)
-    build_server(session, triage_tools=not args.no_triage, spectrogram_tool=args.spectrogram).run("stdio")
+    build_server(session, triage_tools=not args.no_triage, spectrogram_tool=not args.no_spectrogram).run("stdio")
 
 
 if __name__ == "__main__":
