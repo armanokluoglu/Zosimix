@@ -523,3 +523,20 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Speed:* `phase_report`'s lag search runs on every 10th sample of the 500 Hz low-passed signals: 21.4 s → 4.9 s for five drum mics, identical correlations and flips, lags within 0.08 ms. `flip_db`, which `graders.acceptable_stems` uses, is still computed at full rate, so grading doesn't change.
 - *Process slip:* the tools and skill were edited while dev-v4 was running, so that run mixes two versions (25/36). It is reported only as a rough reading; the clean measurement is dev-v5 on commit 8a7e77f.
 - *Dev result (dev-v5, commit 8a7e77f, 2 repeats, 4 workers, 13 min):* 25/36 = 69%, partial 0.70 (D73 version: 23/36, 0.64; before D72: 8/18, 0.51). Pan 6/6, resonance 4/6, mud 3/6, controls 6/6, clipping 6/6, gain 0/6. No integrity flags. The test set hasn't been rerun.
+
+**D75 — Day 12: the blind listening check** · 2026-11-26 · accepted (owner: "lets move onto the next days first", before the test rerun)
+- *What (DESIGN §4.9):* `python -m zosimix.listening build` makes a local page with 24 blind A/B pairs. Each pair asks "which sounds better: A, B, or no difference?". The pairs:
+  - 3 same-clip controls;
+  - 3 clean vs badly broken controls (severity 2);
+  - 6 passed repair vs broken;
+  - 6 failed repair (an attempted fix the grader failed) vs broken;
+  - 6 clean vs passed repair.
+  `analyze` turns the downloaded answers into `results/listening.md`.
+- *Audio:* AlbumDB songs only (CC BY 4.0, per DESIGN §3), from the dev songs and the test set's two AlbumDB songs. The repairs are real agent answers from earlier runs (regraded grades), rendered with the offline engine (faithful to FL, D64).
+  - The original full set's mud and resonance tasks are left out: they barely changed the mix (D69) and would make inaudible "broken" clips.
+  - flmcp answers are left out: no mix state to render.
+- *Clips:* 12 s from where the faulty stem is loudest (the same window for every version of a task), loudness-matched to −23 LUFS so "louder" can't win, with 20 ms fades. A/B sides and presentation order are randomised (seed 75).
+- *Integrity:* clip names are opaque (`c001.wav`...). The key (`key.json`) sits outside the page folder, and the page contains no task ids or version names.
+- *Speed:* rendering only the clip window plus 1 s of pre-roll for the filters, and finding the window with a running sum instead of a convolution, cut the build from over 20 minutes to 12 s.
+- *Checked in the browser:* playback, keyboard answering (playback continues while answering), saved progress, and the answers download. A dummy session went through `analyze`. The listening session itself is the owner's.
+- *Not in git:* the session's audio (`C:\zosimix\listening\`), and `.claude/` (local launch config with machine paths), now in `.gitignore`.

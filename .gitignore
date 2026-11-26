@@ -31,3 +31,6 @@ Thumbs.db
 
 # Spike scratch output
 spike/work/
+
+# Local Claude Code files (launch.json holds this machine's paths)
+.claude/

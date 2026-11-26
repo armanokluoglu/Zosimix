@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zosimix Listening</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #dddbd5;
+    --accent: #2f5d8a; --accent-ink: #ffffff; --chosen: #e3ecf5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --panel: #201f1d; --ink: #ecebe7; --muted: #a09e98; --line: #36342f;
+      --accent: #7fb0e0; --accent-ink: #10202f; --chosen: #26313c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-top: 20px; }
+  .progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 16px; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .players { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+           border-radius: 8px; padding: 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.play.playing { background: var(--chosen); border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .answers { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .answers button.chosen { background: var(--chosen); border-color: var(--accent); }
+  kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  input { font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); width: 100%; }
+  .row { display: flex; gap: 8px; justify-content: space-between; margin-top: 16px; }
+  @media (max-width: 420px) { .answers { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Which mix sounds better?</h1>
+  <div class="muted">Blind A/B check for the Zosimix benchmark. Use headphones: some differences are left/right balance.
+    Each pair is two 12-second versions of the same moment, matched in loudness. Some pairs are identical on purpose.
+    Answer by ear, as many listens as you like.</div>
+
+  <div class="panel" id="start">
+    <label for="name">Your name or initials</label>
+    <input id="name" autocomplete="off">
+    <div class="row"><span class="muted" id="resume"></span><button class="primary" id="go">Start</button></div>
+  </div>
+
+  <div class="panel" id="trial" hidden>
+    <div class="muted" id="count"></div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="players">
+      <button class="play" id="playA">Play A <kbd>1</kbd></button>
+      <button class="play" id="playB">Play B <kbd>2</kbd></button>
+    </div>
+    <div class="answers">
+      <button data-answer="a">A is better <kbd>A</kbd></button>
+      <button data-answer="none">No difference <kbd>N</kbd></button>
+      <button data-answer="b">B is better <kbd>B</kbd></button>
+    </div>
+    <div class="row">
+      <button id="back">Back</button>
+      <button class="primary" id="next">Next <kbd>Enter</kbd></button>
+    </div>
+  </div>
+
+  <div class="panel" id="done" hidden>
+    <p>All pairs answered. Thank you.</p>
+    <button class="primary" id="download">Download answers</button>
+    <p class="muted">Send the downloaded file back (or keep it): the answer key isn't on this page.</p>
+  </div>
+</main>
+<audio id="player" preload="auto"></audio>
+<script>
+const TRIALS = /*TRIALS*/[];
+const STORE = "zosimix-listening";
+let state = { name: "", answers: {}, index: 0 };
+try { state = Object.assign(state, JSON.parse(localStorage.getItem(STORE) || "{}")); } catch (e) {}
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+const $ = (id) => document.getElementById(id);
+const player = $("player");
+let playing = null;
+
+if (Object.keys(state.answers).length) {
+  $("resume").textContent = `${Object.keys(state.answers).length} of ${TRIALS.length} answered so far`;
+  $("name").value = state.name;
+}
+
+function play(which) {
+  const t = TRIALS[state.index];
+  if (playing === which) { player.pause(); playing = null; markPlaying(); return; }
+  player.src = t[which];
+  player.play();
+  playing = which;
+  markPlaying();
+}
+function markPlaying() {
+  $("playA").classList.toggle("playing", playing === "a");
+  $("playB").classList.toggle("playing", playing === "b");
+}
+player.addEventListener("ended", () => { playing = null; markPlaying(); });
+
+function show(stopAudio = true) {
+  if (state.index >= TRIALS.length) {
+    $("trial").hidden = true; $("done").hidden = false; return;
+  }
+  const t = TRIALS[state.index];
+  $("count").textContent = `Pair ${state.index + 1} of ${TRIALS.length}`;
+  $("bar").style.width = `${100 * state.index / TRIALS.length}%`;
+  document.querySelectorAll("[data-answer]").forEach((b) =>
+    b.classList.toggle("chosen", state.answers[t.trial] === b.dataset.answer));
+  $("next").disabled = !state.answers[t.trial];
+  if (stopAudio) { player.pause(); playing = null; markPlaying(); }
+}
+function answer(a) {
+  state.answers[TRIALS[state.index].trial] = a; save(); show(false);    // keep playing while answering
+}
+function next() {
+  if (!state.answers[TRIALS[state.index].trial]) return;
+  state.index += 1; save(); show();
+}
+
+$("go").addEventListener("click", () => {
+  state.name = $("name").value.trim() || "listener"; save();
+  $("start").hidden = true; $("trial").hidden = false;
+  state.index = Math.min(state.index, TRIALS.length); show();
+});
+$("playA").addEventListener("click", () => play("a"));
+$("playB").addEventListener("click", () => play("b"));
+document.querySelectorAll("[data-answer]").forEach((b) => b.addEventListener("click", () => answer(b.dataset.answer)));
+$("next").addEventListener("click", next);
+$("back").addEventListener("click", () => { state.index = Math.max(0, state.index - 1); save(); show(); });
+$("download").addEventListener("click", () => {
+  const out = { listener: state.name, saved: new Date().toISOString(),
+                answers: TRIALS.map((t) => ({ trial: t.trial, answer: state.answers[t.trial] || null })) };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
+  const a = document.createElement("a"); a.href = url; a.download = "zosimix-listening-answers.json"; a.click();
+});
+document.addEventListener("keydown", (e) => {
+  if ($("trial").hidden || e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (k === "1") play("a"); else if (k === "2") play("b");
+  else if (k === "a") answer("a"); else if (k === "b") answer("b"); else if (k === "n") answer("none");
+  else if (k === "enter") next();
+});
+</script>
+</body>
+</html>
