@@ -42,7 +42,7 @@ PAN_MONO_CORR = 0.99             # "essentially mono": a mistakenly panned mono 
 PAN_MIN_DB = 1.5                 # off centre by more than this (a 0.3 pan is about 4 dB)
 PAIR_SUFFIX = re.compile(r"(_l|_r|_1|_2|_left|_right)$")
 TWIN_GAP_LU = 5.0                # twins further apart than this in loudness: one of them is off                  # stems listed by scan; the rest are summarised in one line
-MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
+MUD_CUT_MAX_DB = 10.0            # the deepest low-mid cut scan suggests (D81: 12 dB overshot on stems with a big natural hump)
 
 BAND_LABELS = "sub low lmid mid hmid pres bril air"
 
