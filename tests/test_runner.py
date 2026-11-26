@@ -204,3 +204,14 @@ def test_a_tools_own_severity_label_is_not_ground_truth(tmp_path):
              for text in ['{"rule": "clipping", "severity": "high"}', '{"fault": {"severity": 2}}']]
     transcript.write_text("\n".join(json.dumps(x) for x in lines), encoding="utf-8")
     assert runner.integrity_flags(transcript) == [r'tool result: "severity":\s*\d']
+
+
+def test_parallel_workers_write_one_row_per_run(isolated, monkeypatch):
+    """D73: with several workers every (task, config, repeat) still gets exactly one whole line."""
+    fault = faults.Fault("gain", "bass_bass_guitar", 1, {"gain_db": 6.0})
+    tasks.save("t", 1, [tasks.TaskSpec(f"t-00{i}", SONG, fault.to_dict(), "none", "") for i in (1, 2, 3)])
+    monkeypatch.setattr(runner, "build_command", fake({"diagnosis": {"verdict": "no_fault", "findings": []},
+                                                       "mix_state": {}}))
+    runner.run("t", ["zosimix"], 2, "sonnet", "r9", workers=4)
+    keys = sorted((r["task_id"], r["repeat"]) for r in results(isolated))
+    assert keys == [(f"t-00{i}", rep) for i in (1, 2, 3) for rep in (1, 2)]

@@ -20,6 +20,7 @@ Configurations:
 
 Usage:
     python -m zosimix.runner run --set smoke --config zosimix
+    python -m zosimix.runner run --set dev --config zosimix --repeats 3 --workers 4
     python -m zosimix.runner report --run <run_id>
 """
 
@@ -34,7 +35,9 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from zosimix import graders, targets, tasks
@@ -382,7 +385,7 @@ def _record_run_info(run_dir: Path, set_name: str, configs: list[str], repeats: 
 
 
 def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str | None,
-        only: list[str] | None = None) -> Path:
+        only: list[str] | None = None, workers: int = 1) -> Path:
     """Run every task of a set, or just the task ids in `only` (D69: after a set revision,
     only the changed tasks need new runs; the unchanged ones keep their earlier results)."""
     run_id = run_id or f"{dt.datetime.now():%Y%m%d-%H%M}-{set_name}"
@@ -408,30 +411,71 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
         specs = [s for s in specs if s.task_id in only]
     profiles = targets.load_profiles()
     _record_run_info(run_dir, set_name, configs, repeats, model, only)
-    print(f"run {run_id}: {len(specs)} tasks x {configs} x {repeats} repeat(s); {len(done)} already done")
     # Repeats outermost: every task gets its first run before any task gets a second, so a
     # run cut short by a usage limit still holds one complete pass over the set (D65).
-    for repeat in range(1, repeats + 1):
-        for spec in specs:
-            for config in configs:
-                if (spec.task_id, config, repeat) in done:
-                    continue
-                print(f"  {spec.task_id} [{config} #{repeat}] ...", end=" ", flush=True)
-                row = run_one(spec, config, repeat, run_dir, model, profiles)
-                with open(results_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(row) + "\n")
-                if row["status"] == "usage_limit":
-                    print("USAGE LIMIT reached. Resume later with the same command plus --run", run_id)
-                    return run_dir
-                if row["status"] == "fl_error":
-                    # FL failing is about the setup, not the agent, and it tends to repeat.
-                    print(f"FL ERROR: {row['error']}\nFix FL, then resume with the same command plus --run", run_id)
-                    return run_dir
+    jobs = [(spec, config, repeat) for repeat in range(1, repeats + 1) for spec in specs for config in configs
+            if (spec.task_id, config, repeat) not in done]
+    if "flmcp" in configs and workers > 1:
+        print("flmcp drives the one FL instance on this machine: running with 1 worker")
+        workers = 1
+    print(f"run {run_id}: {len(specs)} tasks x {configs} x {repeats} repeat(s); {len(done)} already done, "
+          f"{len(jobs)} to run with {workers} worker(s)")
+    stop = threading.Event()
+    lock = threading.Lock()
+
+    def one(job) -> None:
+        spec, config, repeat = job
+        if stop.is_set():
+            return
+        row = run_one(spec, config, repeat, run_dir, model, profiles)
+        with lock:                                    # one writer at a time, whole lines only
+            with open(results_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+            label = f"  {spec.task_id} [{config} #{repeat}]"
+            if row["status"] == "usage_limit":
+                stop.set()
+                print(f"{label} USAGE LIMIT reached. Resume later with the same command plus --run {run_id}")
+            elif row["status"] == "fl_error":
+                # FL failing is about the setup, not the agent, and it tends to repeat.
+                stop.set()
+                print(f"{label} FL ERROR: {row['error']}\nFix FL, then resume with the same command plus --run {run_id}")
+            else:
                 g = row["grade"]
-                print(f"{'PASS' if g['pass'] else 'fail'}  ({row['wall_s']:.0f} s, {row['turns']} turns)"
-                      + (f"  INTEGRITY: {row['integrity_flags']}" if row["integrity_flags"] else ""))
-    print(f"finished: {results_path}")
+                print(f"{label} {'PASS' if g['pass'] else 'fail'}  ({row['wall_s']:.0f} s, {row['turns']} turns)"
+                      + (f"  INTEGRITY: {row['integrity_flags']}" if row["integrity_flags"] else ""), flush=True)
+
+    # Runs are independent (own workspace, own agent, own MCP server), and almost all of a run's
+    # time is the agent thinking, so several at once finish proportionally sooner (D73).
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one, jobs))
+    print(("stopped early: " if stop.is_set() else "finished: ") + str(results_path))
     return run_dir
+
+
+def regrade(run_id: str) -> Path:
+    """Grade a finished run's saved answers again with the current graders, into regraded.jsonl.
+
+    results.jsonl is left as it was, so a run's original grades stay on record (D73). flmcp
+    answers can't be regraded: they were graded from FL renders, which aren't kept. Those rows
+    are copied with their original grade and marked."""
+    run_dir = RUNS / run_id
+    rows = [json.loads(line) for line in (run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    specs = {}
+    for name in {r["task_id"].rsplit("-", 1)[0] for r in rows}:
+        specs.update({s.task_id: s for s in tasks.load(name)})
+    out = []
+    for r in rows:
+        if r["status"] != "done":
+            continue
+        if r["config"] == "flmcp":
+            out.append({**r, "regraded": False})
+            continue
+        answer = _read_answer(run_dir / "answers" / f"{r['task_id']}-{r['config']}-{r['repeat']}.json") or {}
+        out.append({**r, "grade": graders.grade(specs[r["task_id"]], answer.get("diagnosis"), answer.get("mix_state")),
+                    "regraded": True})
+    path = run_dir / "regraded.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in out), encoding="utf-8")
+    return path
 
 
 def partial_credit(rows: list[dict]) -> float:
@@ -490,12 +534,17 @@ def main() -> None:
     r.add_argument("--model", default=DEFAULT_MODEL)
     r.add_argument("--run", dest="run_id", help="resume this run id")
     r.add_argument("--tasks", help="comma-separated task ids: run only these")
+    r.add_argument("--workers", type=int, default=1, help="runs at once (flmcp always uses 1)")
     p = sub.add_parser("report")
     p.add_argument("--run", dest="run_id", required=True)
+    g = sub.add_parser("regrade", help="grade a run's saved answers again into regraded.jsonl (D73)")
+    g.add_argument("--run", dest="run_id", required=True)
     args = ap.parse_args()
     if args.cmd == "run":
         only = [t.strip() for t in args.tasks.split(",")] if args.tasks else None
-        run(args.set, args.config, args.repeats, args.model, args.run_id, only)
+        run(args.set, args.config, args.repeats, args.model, args.run_id, only, args.workers)
+    elif args.cmd == "regrade":
+        print(f"wrote {regrade(args.run_id)}")
     else:
         print(report(args.run_id))
 

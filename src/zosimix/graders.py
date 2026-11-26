@@ -95,17 +95,23 @@ def repair_score(fault: faults.Fault, clean: dict, broken: dict, rendered: Rende
         after = abs(analysis.balance_db(rendered.fault_stem) - target)
         unit = "dB balance error"
     elif fault.type in ("resonance", "mud"):
-        half_octave = 1 / 3 if fault.type == "resonance" else 1.0
-        lo, hi = fault.params["freq_hz"] * 2 ** -half_octave, fault.params["freq_hz"] * 2 ** half_octave
+        half_width_octaves = 1 / 3 if fault.type == "resonance" else 1.0
+        f0 = fault.params["freq_hz"]
+        lo, hi = f0 * 2 ** -half_width_octaves, f0 * 2 ** half_width_octaves
 
-        def band_share(x):                 # band energy relative to the whole stem: level-independent
+        def band_vs_rest(x):
+            """Band energy against the rest of the stem: level-independent, and unlike a share of
+            the total it doesn't flatten out when the band already holds most of the stem's energy.
+            On a snare, a 10 dB mud boost moved the band's share by only 0.1 dB, so any slightly
+            imperfect cut scored as damage (D73)."""
             freqs, power_db = analysis.spectrum(audio.to_stereo(x), sr)
             power = 10 ** (power_db / 10)
-            return 10 * np.log10(power[(freqs >= lo) & (freqs < hi)].sum() / power.sum())
+            inside = (freqs >= lo) & (freqs < hi)
+            return 10 * np.log10(power[inside].sum() / power[~inside].sum())
 
-        target = band_share(clean[s])
-        before, after = abs(band_share(broken[s]) - target), abs(band_share(rendered.fault_stem) - target)
-        unit = "dB band-shape error"
+        target = band_vs_rest(clean[s])
+        before, after = abs(band_vs_rest(broken[s]) - target), abs(band_vs_rest(rendered.fault_stem) - target)
+        unit = "dB band-vs-rest error"
     elif fault.type == "polarity":
         drums = [n for n in clean if family_of(n) == "drums"]
 
