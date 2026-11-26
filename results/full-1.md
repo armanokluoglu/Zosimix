@@ -1,5 +1,7 @@
 # Full run 1: harness vs plain Claude Code (Sonnet 5.5), 2026-11-25
 
+> Later: the 9 mud and resonance tasks here barely changed the mix and were redrawn (D69). The current numbers, with the third baseline added, are in [full-v2.md](full-v2.md).
+
 The full set's 30 tasks, each run 3 times by two configurations, 180 runs in all:
 
 - **`zosimix`**: Claude Code with the Zosimix MCP server and the diagnosis skill.
