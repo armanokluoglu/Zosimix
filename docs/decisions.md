@@ -548,3 +548,14 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - The README table is generated from the same code, so the chart and the table agree.
 - *README:* chart at the top (with a placeholder for the video, DESIGN §6), the results table with the pass rule and partial credit, the task-by-task sign tests, how the harness works (tools table), the benchmark, the two engines with the parity result and its one exception, eval integrity, how to run, and credits. It includes "Designed by me, implemented by directing Claude Code." The revised harness is listed as work in progress (69% on dev, not yet measured on the test set).
 - *Demo video:* the storyboard is in `docs/demo-video.md` (AlbumDB audio only). Recording it is the owner's. A small helper to open the broken and repaired projects in FL for one task would make shots 2 and 4 easier; not built yet.
+
+**D77 — The listening session: graders agree with ears where they should** · 2026-11-26 · accepted
+- *Session:* one listener (the builder), 24 blind pairs, results in `results/listening.md`. The listener is named there only as "the builder".
+- *Controls held:* identical clips were heard as identical (3/3), and clean beat badly broken (3/3).
+- *The direct test:* clean vs a repair the grader passed was heard as "no difference" 6/6.
+- *Preference isn't restoration:*
+  - Passed repairs beat broken 4/6. Failed repairs beat broken 3/6: one genuine partial fix (gain, 0.6), and two mud cuts that barely touched the faulty stem but made the whole mix less muddy.
+  - A snare with a 5 kHz ring (dev-016) was preferred over both its repairs, a brighter sound winning a 12 s comparison.
+  - The page asked which sounds better, while the grader measures closeness to the engineer's mix.
+  - A next session should ask "which is closer to the reference?" with the clean mix as a known reference, and add a second listener.
+- *The listener's own report:* most differences were hard to judge. This is kept in the write-up as a limit: it's a sanity check, not a measurement of audibility.
