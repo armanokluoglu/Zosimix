@@ -10,7 +10,9 @@ Claude can't listen to audio. Zosimix gives it a way to "hear" a multitrack mix 
 
 ## Results
 
-**On six songs held out from all tuning** (30 tasks, 1 repeat), the harness passes **63%** against **43%** for plain Claude Code. It wins 6 tasks and loses none (sign test p ≈ 0.03), using a third of the output tokens: [results/holdout.md](results/holdout.md).
+**On six songs held out from all tuning**, the harness passes **83%** of tasks against **57%** for plain Claude Code. It wins 6 tasks and loses none (sign test p ≈ 0.03), using a third of the output tokens: [results/holdout.md](results/holdout.md).
+
+Mud and resonance are matters of taste, so the harness only treats them as faults when the client's note mentions them. Tasks with those faults and no note are reported but not counted in the pass rate, for every configuration (D83). Counting every task, the held-out rates are 63% and 43%.
 
 The table and chart below are the earlier full benchmark (full-v2), with three repeats and all three configurations.
 
@@ -18,7 +20,8 @@ Every configuration runs the same model (Claude Sonnet 5.5) on the same 30 tasks
 
 | | Zosimix harness | Plain Claude Code | [flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp) |
 |---|---|---|---|
-| **Pass rate** | **51%** (46/90) | 37% (33/90) | 13% (12/90) |
+| **Pass rate** (in scope) | **57%** (46/81) | 41% (33/81) | 15% (12/81) |
+| Pass rate, every task | 51% (46/90) | 37% (33/90) | 13% (12/90) |
 | Partial credit | 0.54 | 0.40 | 0.14 |
 | Clipping | 12/12 | 4/12 | 0/12 |
 | No fault (leave it alone) | 12/12 | 11/12 | 10/12 |
@@ -26,7 +29,7 @@ Every configuration runs the same model (Claude Sonnet 5.5) on the same 30 tasks
 | Pan | 6/12 | 7/12 | 0/12 |
 | Gain | 4/12 | 0/12 | 2/12 |
 | Resonance | 4/12 | 6/12 | 0/12 |
-| Mud | 0/15 | 0/15 | 0/15 |
+| Mud (with a note) | 0/6 | 0/6 | 0/6 |
 
 A run **passes** only if it names the right fault on the right stem, removes at least 70% of the fault-specific error, and leaves every healthy stem unchanged. Clipping is the exception: baked-in clipping can't be repaired, so the right answer is to report it and change nothing. Partial credit counts a correct but incomplete repair at its repair score.
 

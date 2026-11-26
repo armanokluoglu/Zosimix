@@ -16,7 +16,7 @@ import json
 from html import escape
 from pathlib import Path
 
-from zosimix import tasks
+from zosimix import graders, tasks
 
 REPO = Path(__file__).resolve().parents[2]
 RUNS = Path("C:/zosimix/runs")
@@ -58,6 +58,9 @@ def full_v2_rows(sources: dict = SOURCES) -> dict[str, list[dict]]:
 
 
 def summarise(rows: dict[str, list[dict]]) -> dict:
+    """Pass counts over in-scope runs only: a no-note mud or resonance task asks for something
+    the harness is designed not to do, for every configuration alike (D83)."""
+    rows = {c: [r for r in rs if graders.in_scope(r["grade"])] for c, rs in rows.items()}
     overall = {c: (sum(r["grade"]["pass"] for r in rs), len(rs)) for c, rs in rows.items()}
     by_fault: dict[str, dict[str, tuple[int, int]]] = {}
     for c, rs in rows.items():
@@ -97,9 +100,9 @@ def svg(summary: dict, title: str) -> str:
     width, pad = 760, 24
     configs = list(LABELS)
     cls = {c: f"s{i + 1}" for i, c in enumerate(configs)}
-    parts = [(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 560" role="img" '
+    parts = [(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 580" role="img" '
              f'aria-label="{escape(title)}"><style>{STYLE}</style>'),
-             f'<rect class="surface" x="0" y="0" width="{width}" height="560" rx="8"/>',
+             f'<rect class="surface" x="0" y="0" width="{width}" height="580" rx="8"/>',
              f'<text class="t1" x="{pad}" y="36" font-size="18" font-weight="600">{escape(title)}</text>']
 
     # --- panel 1: overall pass rate, horizontal bars
@@ -146,8 +149,10 @@ def svg(summary: dict, title: str) -> str:
                 parts.append(_bar(gx + j * bar_w + gap / 2, bottom - h, bar_w - gap, h, cls[c], horizontal=False))
         parts.append(f'<text class="t1" x="{left + g * group + group / 2}" y="{bottom + 18}" font-size="12" '
                      f'text-anchor="middle">{fault}</text>')
-    parts.append(f'<text class="t2" x="{pad}" y="{bottom + 46}" font-size="11">30 injected-fault tasks x 3 repeats,'
-                 ' Claude Sonnet 5.5. Pass = right fault on the right stem, repaired, nothing else changed.</text>')
+    parts.append(f'<text class="t2" x="{pad}" y="{bottom + 44}" font-size="11">30 injected-fault tasks x 3 repeats,'
+                 ' Claude Sonnet 5.5. Mud and resonance count when the client mentions them.</text>')
+    parts.append(f'<text class="t2" x="{pad}" y="{bottom + 60}" font-size="11">Pass = right fault on the right stem,'
+                 ' repaired, and nothing else changed.</text>')
     parts.append("</svg>")
     return "\n".join(p for p in parts if p)
 
@@ -157,7 +162,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
     summary = summarise(full_v2_rows())
-    args.out.write_text(svg(summary, "Pass rate on the full-v2 benchmark"), encoding="utf-8")
+    args.out.write_text(svg(summary, "Pass rate on the full-v2 benchmark (in-scope tasks)"), encoding="utf-8")
     for c, (k, n) in summary["overall"].items():
         print(f"{LABELS[c]:20} {k}/{n} = {100 * k / n:.0f}%")
     print(f"wrote {args.out}")

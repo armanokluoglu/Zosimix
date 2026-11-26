@@ -36,6 +36,21 @@ REPAIR_PASS = 0.7           # at least 70% of the fault-specific error removed
 UNTOUCHED_DB = -30.0        # "unchanged" = residual at least 30 dB below the signal (~3%)
 POLARITY_ACCEPT_DB = 1.0    # any drum stem whose flip would restore >= 1 dB of low end
 EXPECTED_VERDICT = {"clipping": "unfixable", "control": "no_fault"}
+# Faults that are a matter of taste: the harness only treats them as faults when the client's
+# note mentions them (D72, D73). A task of this kind with no note is out of scope (D83).
+NOTE_GATED = {"mud", "resonance"}
+
+
+def in_scope(grade: dict) -> bool:
+    """Whether a graded task counts toward the headline pass rate (D83).
+
+    Mud and resonance are tonal judgements. A mix engineer handed only the stems and no
+    complaint can't tell a boxy part from one recorded that way on purpose, and when the
+    harness tried, it cut healthy stems. So it is designed to act on them only when the
+    client says the mix is muddy, harsh or ringy. A task with such a fault and no note
+    asks for something the design rules out: it is reported, but not counted in the
+    headline rate. This applies to every configuration alike."""
+    return not (grade.get("fault_type") in NOTE_GATED and grade.get("hint_level") == "none")
 
 
 def _residual_db(a: np.ndarray, reference: np.ndarray) -> float:
@@ -255,6 +270,7 @@ def grade_renders(spec: TaskSpec, diagnosis: dict | None, renders: dict[frozense
 def _score(spec: TaskSpec, task: _Task, diagnosis: object, rendered: Rendered) -> dict:
     fault, clean, broken, sr, accept = task.fault, task.clean, task.broken, task.sr, task.accept
     result = {**_header(spec), "invalid_mix_state": rendered.invalid_mix_state}
+    result["in_scope"] = in_scope(result)
 
     # ---- detection
     expected = EXPECTED_VERDICT.get(fault.type, "fixed")

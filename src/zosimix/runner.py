@@ -517,7 +517,9 @@ def report(run_id: str) -> str:
         passed = sum(r["grade"]["pass"] for r in rs)
         detected = sum(bool(r["grade"].get("detected")) for r in rs)
         tokens = [r["usage"].get("output_tokens", 0) for r in rs]
-        lines.append(f"\n[{config}] pass {passed}/{len(rs)}, detected {detected}/{len(rs)}, "
+        scoped = [r for r in rs if graders.in_scope(r["grade"])]
+        lines.append(f"\n[{config}] pass {sum(r['grade']['pass'] for r in scoped)}/{len(scoped)} in scope (D83), "
+                     f"{passed}/{len(rs)} all, detected {detected}/{len(rs)}, "
                      f"partial credit {partial_credit(rs):.2f}, "
                      f"median {sorted(r['wall_s'] for r in rs)[len(rs) // 2]:.0f} s, "
                      f"{sum(r['turns'] or 0 for r in rs) / len(rs):.0f} turns avg, "

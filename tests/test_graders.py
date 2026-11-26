@@ -200,3 +200,17 @@ def test_render_groups_cover_every_stem_once(songs_root):
     assert not groups[0] & groups[1]
     assert graders.render_groups(spec(faults.Fault("control", None, 0)), songs_root) == [
         frozenset({"drums_kick", "drums_overheads_1", "drums_overheads_2", "bass", "vox_lead"})]
+
+
+def test_no_note_mud_and_resonance_are_out_of_scope():
+    """D83: taste faults with no client note don't count toward the headline pass rate."""
+    assert not graders.in_scope({"fault_type": "mud", "hint_level": "none"})
+    assert not graders.in_scope({"fault_type": "resonance", "hint_level": "none"})
+    assert graders.in_scope({"fault_type": "mud", "hint_level": "vague"})
+    assert graders.in_scope({"fault_type": "gain", "hint_level": "none"})
+    assert graders.in_scope({"fault_type": "control", "hint_level": "none"})
+
+
+def test_grades_carry_their_scope(songs_root):
+    r = graders.grade(spec(GAIN), answer("fixed", "vox_lead", "gain"), {"vox_lead": {"gain_db": -6.0}}, songs_root)
+    assert r["in_scope"] is True

@@ -606,3 +606,12 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Caveats on the page:* no polarity tasks (AlbumDB drums can't host them); mud is 0/5 for both; resonance is 2/5; one repeat; flstudio-mcp not run on these songs.
 - *Runtime:* the held-out songs have 25–35 stems, so runs took a median 75–82 s and the whole run 30 min (one plain run took 12 min).
 - The README now leads its results section with this number. Page: `results/holdout.md`.
+
+**D83 — No-note mud and resonance tasks are out of scope for the headline pass rate** · 2026-11-26 · accepted (owner: "it should be gated on a note, but it shouldn't bring down our reported pass rate if it's acting as it's supposed to")
+- *Why:* the harness treats mud and resonance as faults only when the client's note mentions them (D72, D73). Acting without a note cut healthy stems: a naturally boomy acoustic guitar, a guitar's natural 732 Hz bump. On the held-out set, 9 of the harness's 11 failures were no-note tasks; with a note it passed 15/17.
+- *Rule (`graders.in_scope`, recorded as `in_scope` in every new grade):* a task whose fault is mud or resonance and whose hint level is "none" is out of scope. Reports, the chart and the README count the headline pass rate over in-scope tasks, and also give the every-task rate. The rule applies to every configuration alike, and is computed from fields every stored grade already has, so no regrading is needed.
+- *Not out of scope:* gain without a note. The harness does act on level without a note (twin gaps), so a miss there is a real limit, not the policy.
+- *Effect:*
+  - Held-out: harness 19/23 = 83% (every task 63%), plain 13/23 = 57% (43%), still 6–0 by task. Both answered "no fault" on all 7 out-of-scope tasks.
+  - full-v2: harness 46/81 = 57% (51%), plain 33/81 = 41% (37%), flstudio-mcp 12/81 = 15% (13%).
+- *Honesty:* every page gives both rates, and the scope rule is stated next to the headline.
