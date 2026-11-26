@@ -559,3 +559,22 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - The page asked which sounds better, while the grader measures closeness to the engineer's mix.
   - A next session should ask "which is closer to the reference?" with the clean mix as a known reference, and add a second listener.
 - *The listener's own report:* most differences were hard to judge. This is kept in the write-up as a limit: it's a sanity check, not a measurement of audibility.
+
+**D78 — Week 3: the revised harness on the test set, ablation switches, the spectrogram tool** · 2026-11-26 · accepted (owner: "test first, then ablations including the spectrogram tool, then test again", 1 repeat; then cut to two ablations to save usage)
+- *Test (`full-4-r1`, commit 2fe81d2, 1 repeat):* 20/30 = 67%, partial 0.69, against 15/30 for the old harness's repeat 1. Four failures came from the D74 pan check firing on deliberately panned mono toms and an acoustic guitar in one test song.
+- *Ablation switches:* runner configs `zosimix-noverify`, `zosimix-notarget` (no `tonal_target.json` in the workspace), `zosimix-notriage` (server `--no-triage`) and `zosimix-spectrogram` (server `--spectrogram`); `zosimix-noskill` already existed. They were built in a separate git worktree so the running test kept loading unchanged code.
+- *Spectrogram tool (`zosimix.spectrogram`):* a log-frequency spectrogram (20 Hz–20 kHz, 640×320, 80 dB range, guides at 100 Hz, 1 kHz and 10 kHz), drawn with numpy and written as PNG with zlib. No new dependency. Returned as an MCP image.
+- *Results (1 repeat, vs `full-4-r1`):*
+  - Without triage and scan: 17/30, partial 0.58, about 20% more tokens; better on 1 task, worse on 4 (p ≈ 0.38).
+  - With the spectrogram: identical, because the agent never called it (0/30). A fair test needs skill guidance on when to look.
+  - Skill, verification and tonal-target ablations were stopped after 5 tasks to save usage (the full set would have been about 150 runs).
+- Page: `results/week3.md`.
+
+**D79 — A test-informed pan gate, and why it failed** · 2026-11-26 · measured, not kept as an improvement
+- *Change (commit 5939258):* a pan suspect is fixed without a note only if it's a centre stem (bass, kick, snare, lead vocal) or the MIX leans its way by more than 0.3 dB; otherwise only with a lopsided note. It was labelled test-informed in the commit.
+- *Result (`full-5-r1`):* 18/30 against 20/30.
+  - The polarity task passed, now free of stray pan changes.
+  - The two controls still failed: that song's clean mix leans 0.6 dB toward its toms, so the lean test fired.
+  - Three no-note pan faults on non-centre stems were no longer fixed.
+- *Finding:* audio alone can't tell a mono part panned on purpose from one panned by mistake, so neither rule separates them. Without a note this is a judgement call, which the benchmark scores as a fault because the generator only pans originally centred stems.
+- *Status:* D79 is in the code as of this entry. Whether to revert to D74's signature-only rule (20/30) is the owner's decision.
