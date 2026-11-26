@@ -615,3 +615,19 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - Held-out: harness 19/23 = 83% (every task 63%), plain 13/23 = 57% (43%), still 6–0 by task. Both answered "no fault" on all 7 out-of-scope tasks.
   - full-v2: harness 46/81 = 57% (51%), plain 33/81 = 41% (37%), flstudio-mcp 12/81 = 15% (13%).
 - *Honesty:* every page gives both rates, and the scope rule is stated next to the headline.
+
+**D84 — The harness as a Claude Code plugin, with a live mode and an apply-to-FL step** · 2026-11-26 · accepted (owner: "go ahead with the plugin")
+- *Why:* the harness only served the benchmark: the runner built a workspace and launched Claude. A user had no way to point it at their own song or project. Claude Code is the interface, and the harness plugs into it as an MCP server plus a skill, the normal way to extend it. A custom UI would have to run `claude -p` underneath anyway: the budget rule is Claude Pro only, with no API key.
+- *Plugin:*
+  - The repo root is the plugin. `.claude-plugin/plugin.json` declares the MCP server, `.claude-plugin/marketplace.json` makes it installable from GitHub, `skills/zosimix-diagnosis` is the skill, and `commands/fix.md` is `/zosimix:fix <folder> [note]`.
+  - The server starts through `plugin/run_server.py`, which uses the plugin's own `.venv` if there is one, otherwise `uv`, otherwise prints setup steps.
+  - `claude plugin validate .` passes (warnings: the dev CLAUDE.md at the root isn't plugin context; no icon), and `claude mcp list` shows it connected.
+- *Live mode (`zosimix.live`, server without `--workspace`):* the server starts empty and `open_mix(folder)` loads DAW-exported stems, skipping the master file. Export names don't say what a part is, so each stem gets a working name: the shared project prefix is dropped and a family prefix is added from keywords (kick → drums_, vox → vocals_, gtr → guitars_). The tools group, twin-match and compare by family, and the original name is kept for matching mixer inserts. A tonal target from all 7 benchmark songs ships in `src/zosimix/data/tonal_target.json`: per-band averages only, no audio. It is made by `python -m zosimix.targets`. `.gitignore`'s `data/` rule is now anchored to the root, so this folder is tracked.
+- *Apply to FL (`zosimix.fl.live`, tools `apply_to_fl` and `revert_fl`):*
+  - The committed fix is matched to mixer inserts by name: a stem matches the insert name it ends with, and the longest name wins.
+  - It is applied relative to what each insert holds, because split-export stems are post-fader and post-effects: fader by the gain, pan knob by the pan value (FL's pan law differs slightly; the plan says so), polarity flipped.
+  - EQ goes only into a Fruity Parametric EQ 2 whose bands are all flat, since FL's API can't add plugins. Width isn't applied; the plan says so.
+  - It always runs as a dry run first; the command tells Claude to ask before applying. Every change records its old value, and `revert_fl` restores them.
+  - Live check in FL: gain −3 dB, pan +0.30, polarity and a −6 dB EQ band applied exactly, and the revert restored all four.
+- *Tool errors now reach the agent:* this MCP SDK replaces an ordinary exception's message with "Error executing tool", hiding the reason. Every tool now turns a `ValueError` into a `ToolError`, whose text is sent ("unknown stem 'nope'. Stems: ..."; "q=99 is outside the allowed range"). This applies to benchmark runs too; earlier runs got the bare message.
+- *End-to-end check:* Claude Code with `--plugin-dir`, running `/zosimix:fix` on dev-014 written out as FL-style exports, with the note "the mix sounds muddy". It loaded 23 stems, found the right guitar, cut −7.7 dB at 194 Hz, explained what it left alone, and gave manual settings because FL was closed. Graded against the task: pass, repair 0.95, nothing else changed.

@@ -38,6 +38,39 @@ A run **passes** only if it names the right fault on the right stem, removes at 
 - flstudio-mcp is an FL Studio MCP built for producing: its agent can read levels but not spectra, stereo balance or phase, so most faults are invisible to it.
 - **Work in progress:** a revised harness passes 69% on a separate development set, up from 44%: a `triage` tool, mix-aware mud and resonance rankings, and a mistaken-pan check. It hasn't been measured on the test set yet. How it was tuned without touching the test set, and what didn't work: [results/harness-v2.md](results/harness-v2.md).
 
+## Use it on your own mix
+
+Zosimix ships as a [Claude Code](https://claude.com/claude-code) plugin: the measurement tools, the diagnosis skill, and a `/zosimix:fix` command. Claude Code is the interface. You describe what sounds wrong, Claude measures, explains what it found, and repairs it with your OK.
+
+**Install** (Claude Code 2.1.275 or later):
+
+```
+/plugin install zosimix --marketplace armanokluoglu/Zosimix
+```
+
+The tools need Python 3.11+ and the project's packages. Install [uv](https://docs.astral.sh/uv/) and the plugin sets itself up on first use. Without uv, run this once in the plugin's folder: `python -m venv .venv`, then `.venv\Scripts\pip install -e ".[fl]"`.
+
+**Use it:**
+
+1. In FL Studio, export the mixer tracks: **File → Export → WAV** with **Split mixer tracks** ticked. You get one WAV per insert (the master file is ignored).
+2. In Claude Code:
+   ```
+   /zosimix:fix "C:\path\to\the exported stems" the vocals sound boxy
+   ```
+   Everything after the folder is the client note. Mud and resonance are only treated as faults when the note mentions them; clipping, polarity and mistaken pans are checked either way.
+3. Claude reports what it found and changed, track by track, and saves the findings and settings in `zosimix-output` next to the stems.
+
+**Put the fix into the open FL project** (optional, Windows): with the Zosimix MIDI script connected, Claude first shows a dry-run plan, applies it only when you agree, and `revert_fl` undoes it. Changes are relative to what each mixer insert holds now:
+- the insert's fader, pan and polarity switch are changed;
+- EQ goes into a **Fruity Parametric EQ 2** on that insert whose bands are still flat. FL's scripting API can't add plugins, so if there isn't one, Claude says where to add it.
+
+To connect FL, once:
+1. Install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html), create ports named **Zosimix In** and **Zosimix Out**, and leave it running.
+2. Copy `fl_bridge/device_Zosimix.py` to `Documents\Image-Line\FL Studio\Settings\Hardware\Zosimix\`.
+3. In FL, **Options → MIDI settings**: enable the `Zosimix In` input, set its controller type to **Zosimix Bridge (user)**, and give it a port number. See [fl_bridge/TEMPLATE.md](fl_bridge/TEMPLATE.md) if it doesn't answer.
+
+**What it can and can't do:** it handles the fault types the benchmark covers (level, pan, polarity, resonance, mud, clipping). It measures and repairs; it doesn't make creative mix decisions.
+
 ## How it works
 
 **The harness** is an MCP server plus a diagnosis skill for Claude Code ([skills/zosimix-diagnosis](skills/zosimix-diagnosis/SKILL.md)). The agent never hears audio; it measures it:
@@ -91,6 +124,7 @@ Runs use the Claude Code CLI with a Claude subscription login, never an API key.
 - [results/](results): every evaluation write-up
 - `src/zosimix/`: harness, engines, faults, graders, runner
 - `fl_bridge/`: the script that runs inside FL Studio, and the template
+- `.claude-plugin/`, `commands/`, `plugin/`: the Claude Code plugin
 
 ## Credits
 

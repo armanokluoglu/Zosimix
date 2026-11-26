@@ -1,0 +1,19 @@
+{
+  "name": "zosimix",
+  "displayName": "Zosimix",
+  "version": "0.1.0",
+  "description": "Diagnose and repair a multitrack mix you can't hear: measurement tools that act as Claude's ears, a mixing playbook, and a one-step way to put the fix into the FL Studio project you have open.",
+  "author": {
+    "name": "armanokluoglu",
+    "url": "https://github.com/armanokluoglu"
+  },
+  "repository": "https://github.com/armanokluoglu/Zosimix",
+  "license": "MIT",
+  "keywords": ["mixing", "audio", "fl-studio", "mcp", "music-production"],
+  "mcpServers": {
+    "zosimix": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/plugin/run_server.py"]
+    }
+  }
+}

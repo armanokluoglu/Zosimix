@@ -15,6 +15,7 @@ means analysing every stem of every song.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -77,3 +78,21 @@ def target_for(song_id: str, profiles: dict[str, dict] | None = None) -> dict:
         "mix": _stats([p["mix"] for p in others]),
         "families": {f: {"n": len(s), **_stats(s)} for f, s in families.items() if len(s) >= 3},
     }
+
+
+LIVE_TARGET = Path(__file__).with_name("data") / "tonal_target.json"
+
+
+def export_live_target(path: Path = LIVE_TARGET) -> Path:
+    """The tonal target for live mode (D84): built from every benchmark song, since a user's own
+    song is never one of them. Only per-band averages and spreads are stored, no audio."""
+    target = target_for("__live__")
+    target["about"] = ("Typical band shapes of professionally mixed songs and their instrument families, from the "
+                       "Zosimix benchmark songs (MoisesDB, AlbumDB; see CITATIONS.md). Averages only, no audio.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(target, indent=1), encoding="utf-8")
+    return path
+
+
+if __name__ == "__main__":
+    print(f"wrote {export_live_target()}")

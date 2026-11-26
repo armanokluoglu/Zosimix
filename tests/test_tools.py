@@ -212,3 +212,11 @@ def test_one_pan_suspect_is_fixed_several_mean_a_deliberate_arrangement():
     from zosimix.tools import MixSession
     assert MixSession._pan_verdict(1).endswith("fix it")
     assert "deliberate" in MixSession._pan_verdict(2)
+
+
+def test_tool_errors_reach_the_agent_with_their_reason():
+    """D84: this MCP SDK hides an ordinary exception's text; tools raise ToolError instead."""
+    from mcp.server.mcpserver.exceptions import ToolError
+    server = build_server(session_with(None))
+    with pytest.raises(ToolError, match="unknown stem 'nope'"):
+        asyncio.run(server.call_tool("spectrum", {"stem": "nope"}))

@@ -7,7 +7,7 @@ __pycache__/
 *.egg-info/
 
 # Audio and datasets: never commit raw dataset audio (see DESIGN.md §4.1)
-data/
+/data/
 *.wav
 *.flac
 *.mp3
