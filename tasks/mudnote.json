@@ -1,0 +1,143 @@
+{
+  "set": "mudnote",
+  "seed": 0,
+  "derived_from": "full-v2 + dev mud tasks, every one given the vague 'muddy' note",
+  "tasks": [
+    {
+      "task_id": "mudnote-001",
+      "song_id": "albumdb-10-it-ain-t-easy-to-mend-a-heart",
+      "fault": {
+        "type": "mud",
+        "stem": "viola",
+        "severity": 2,
+        "params": {
+          "freq_hz": 277.5,
+          "gain_db": 12.0,
+          "q": 1.0,
+          "mix_rise_db": 3.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-002",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "mud",
+        "stem": "wind_reeds_saxophone_clarinets",
+        "severity": 0,
+        "params": {
+          "freq_hz": 386.2,
+          "gain_db": 6.3,
+          "q": 1.0,
+          "mix_rise_db": 1.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-003",
+      "song_id": "moisesdb-centenary-by-now",
+      "fault": {
+        "type": "mud",
+        "stem": "vocals_lead_female_singer",
+        "severity": 1,
+        "params": {
+          "freq_hz": 312.6,
+          "gain_db": 8.3,
+          "q": 1.0,
+          "mix_rise_db": 2.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-004",
+      "song_id": "moisesdb-the-followers-kryptonite",
+      "fault": {
+        "type": "mud",
+        "stem": "drums_snare_drum",
+        "severity": 2,
+        "params": {
+          "freq_hz": 300.1,
+          "gain_db": 7.3,
+          "q": 1.0,
+          "mix_rise_db": 3.06
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-005",
+      "song_id": "moisesdb-juniper-triangles",
+      "fault": {
+        "type": "mud",
+        "stem": "vocals_lead_female_singer",
+        "severity": 0,
+        "params": {
+          "freq_hz": 280.1,
+          "gain_db": 4.3,
+          "q": 1.0,
+          "mix_rise_db": 1.04
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-006",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_solo_r",
+        "severity": 2,
+        "params": {
+          "freq_hz": 214.8,
+          "gain_db": 11.7,
+          "q": 1.0,
+          "mix_rise_db": 3.03
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-007",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "mud",
+        "stem": "drums_snare_2",
+        "severity": 0,
+        "params": {
+          "freq_hz": 394.6,
+          "gain_db": 10.2,
+          "q": 1.0,
+          "mix_rise_db": 1.01
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "mudnote-008",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_r",
+        "severity": 1,
+        "params": {
+          "freq_hz": 225.6,
+          "gain_db": 8.9,
+          "q": 1.0,
+          "mix_rise_db": 2.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    }
+  ]
+}
