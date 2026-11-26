@@ -17,6 +17,7 @@ import copy
 import json
 import math
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -32,11 +33,14 @@ VERDICTS = ("fixed", "unfixable", "no_fault")
 
 # Rough budgets in characters (about 4 characters per token). Enforced by tests.
 TOKEN_BUDGETS = {"overview": 4000, "spectrum": 900, "compare": 900, "phase": 900,
-                 "tonal_balance": 1200, "scan": 1400, "commit_changes": 600, "get_mix_state": 2400}
+                 "tonal_balance": 1200, "scan": 1400, "triage": 1400, "commit_changes": 600, "get_mix_state": 2400}
 # Threads for measuring stems. The runner lowers it when several agents run at once, so
 # their measurement servers don't fight over the same cores (D73).
 MEASURE_THREADS = int(os.environ.get("ZOSIMIX_MEASURE_THREADS", min(8, os.cpu_count() or 1)))
-SCAN_LINES = 14                  # stems listed by scan; the rest are summarised in one line
+SCAN_LINES = 14
+PAN_MONO_CORR = 0.99             # "essentially mono": a mistakenly panned mono track has L/R correlation ~1
+PAN_MIN_DB = 1.5                 # off centre by more than this (a 0.3 pan is about 4 dB)
+PAIR_SUFFIX = re.compile(r"(_l|_r|_1|_2|_left|_right)$")                  # stems listed by scan; the rest are summarised in one line
 MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
 
 BAND_LABELS = "sub low lmid mid hmid pres bril air"
@@ -183,13 +187,78 @@ class MixSession:
     def scan(self, measure: str, family: str | None = None) -> str:
         """Every stem (or one family's) ranked on one measure, so an outlier shows in one call (D72).
         Checking stems one at a time, agents tended to stop after two or three."""
-        if measure not in ("peaks", "lowmid"):
-            raise ValueError('measure must be "peaks" or "lowmid"')
+        if measure not in ("peaks", "lowmid", "pan"):
+            raise ValueError('measure must be "peaks", "lowmid" or "pan"')
         names = [n for n in self.engine.stem_names if family is None or family_of(n) == family]
         if not names:
             families = sorted({family_of(n) for n in self.engine.stem_names})
             raise ValueError(f"no stems in family {family!r}. Families: {', '.join(families)}")
+        if measure == "pan":
+            return self._scan_pan(names)
         return self._scan_peaks(names) if measure == "peaks" else self._scan_lowmid(names)
+
+    def _pan_suspects(self, names: list[str]) -> list[tuple[str, float]]:
+        """Stems that are essentially mono yet sit off centre and have no twin on the other side.
+
+        A mono recording panned to one side by mistake has exactly this signature: its two
+        channels are the same signal at different levels (L/R correlation ~1). Parts panned on
+        purpose are either stereo (lower correlation) or come as a pair (`_l`/`_r`). On the dev
+        songs this flagged the injected pan fault as the only suspect in 24 of 24 cases and
+        flagged nothing in either clean mix (D74)."""
+        metrics = self._stem_metrics()
+        out = []
+        for n in names:
+            m = metrics[n]
+            twin = any(o != n and PAIR_SUFFIX.sub("", o) == PAIR_SUFFIX.sub("", n) for o in self.engine.stem_names)
+            if math.isfinite(m["lufs"]) and m["corr"] >= PAN_MONO_CORR and abs(m["balance_db"]) > PAN_MIN_DB and not twin:
+                out.append((n, m["balance_db"]))
+        return sorted(out, key=lambda t: -abs(t[1]))
+
+    def _scan_pan(self, names: list[str]) -> str:
+        mix = self._mix_metrics()
+        lines = [(f"MIX balance (R-L) {mix['balance_db']:+.2f} dB. Mono stems (corr >= {PAN_MONO_CORR}) more than"
+                 f" {PAN_MIN_DB} dB off centre with no _l/_r twin (a mistaken pan looks like this):")]
+        suspects = self._pan_suspects(names)
+        lines += [f"{n}: balance {b:+.1f} dB, centre with pan {self._pan_to_centre(b):+.2f}" for n, b in suspects]
+        if not suspects:
+            lines.append("none")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _pan_to_centre(balance_db: float) -> float:
+        """The balance-control setting that brings a stem with this R-L balance back to centre."""
+        return (4 / math.pi) * math.atan(10 ** (-balance_db / 20)) - 1
+
+    def triage(self) -> str:
+        """Every objective check in one call, plus the top suspects for the checks that need a symptom.
+
+        Agents skipped cheap checks when no note pointed at them: the harness failed both no-note
+        polarity tasks on full-v2 while passing the ones with a note (D74). This runs them all."""
+        metrics = self._stem_metrics()
+        names = self.engine.stem_names
+        lines = ["TRIAGE (act on the first three without a note; the last two need a matching client note)"]
+        clips = sorted(((metrics[n]["clips_per_min"], n) for n in names), reverse=True)
+        typical = float(np.median([c for c, _ in clips])) if clips else 0.0
+        hot = [f"{n} {c:.0f}/min" for c, n in clips[:3] if c >= max(10.0, 10 * typical)]
+        lines.append("clipping (flat-topped peaks): " + (", ".join(hot) if hot else "none"))
+        drums = [n for n in names if family_of(n) == "drums"]
+        if len(drums) >= 2:
+            rendered = self.engine.render_stems()
+            report = analysis.phase_report({n: rendered[n] for n in drums}, self.engine.sample_rate)
+            flips = sorted(((r["flip_db"], n) for n, r in report.items()), reverse=True)
+            strong = [f"{n} flip {f:+.1f} dB" for f, n in flips if f >= 1.0]
+            lines.append("polarity (drum low end restored if flipped, >= +1 dB): " + (", ".join(strong) if strong else
+                         f"none (largest {flips[0][1]} {flips[0][0]:+.1f} dB)"))
+        else:
+            lines.append("polarity: fewer than 2 drum stems, nothing to compare")
+        pans = self._pan_suspects(names)
+        lines.append("pan (mono, off centre, no twin): " + (", ".join(
+            f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f}" for n, b in pans) if pans else "none"))
+        mud = self._scan_lowmid(names).splitlines()[1:3]
+        lines.append("mud suspects (only with a muddy/boxy note): " + " | ".join(mud))
+        res = self._scan_peaks(names).splitlines()[1:3]
+        lines.append("resonance suspects (only with a harsh/ringy note): " + " | ".join(res))
+        return "\n".join(lines)
 
     def _peaks(self, names: list[str]) -> dict[str, list[analysis.Peak]]:
         rendered = self.engine.render_stems()

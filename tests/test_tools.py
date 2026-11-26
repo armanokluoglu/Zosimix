@@ -126,7 +126,7 @@ def test_mcp_server_exposes_all_tools_and_calls_them(target):
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
     assert {"overview", "spectrum", "phase", "commit_changes", "submit_diagnosis", "set_eq_band"} <= names
-    assert len(names) == 15
+    assert len(names) == 16
     result = asyncio.run(server.call_tool("overview", {}))
     assert "MIX" in str(result)
 
@@ -159,3 +159,20 @@ def test_scan_rejects_unknown_measures_and_families():
         s.scan("loudness")
     with pytest.raises(ValueError, match="Families"):
         s.scan("peaks", family="horns")
+
+
+def test_scan_pan_flags_a_mistakenly_panned_mono_stem_only():
+    """D74: mono, off centre, no twin is the signature of a mistaken pan."""
+    assert session_with(None).scan("pan").splitlines()[1] == "none"
+    s = session_with(faults.Fault("pan", "vox_lead", 1, {"pan": 0.6}))
+    line = s.scan("pan").splitlines()[1]
+    assert line.startswith("vox_lead: balance +") and "centre with pan -0.6" in line
+
+
+def test_triage_runs_every_objective_check(target):
+    s = session_with(faults.Fault("polarity", "drums_overheads", 0), target)
+    out = s.triage()
+    assert "polarity" in out and "drums_overheads flip +" in out
+    for check in ("clipping", "pan (mono", "mud suspects", "resonance suspects"):
+        assert check in out
+    assert len(out) <= TOKEN_BUDGETS["triage"]
