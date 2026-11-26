@@ -540,3 +540,11 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Speed:* rendering only the clip window plus 1 s of pre-roll for the filters, and finding the window with a running sum instead of a convolution, cut the build from over 20 minutes to 12 s.
 - *Checked in the browser:* playback, keyboard answering (playback continues while answering), saved progress, and the answers download. A dummy session went through `analyze`. The listening session itself is the owner's.
 - *Not in git:* the session's audio (`C:\zosimix\listening\`), and `.claude/` (local launch config with machine paths), now in `.gitignore`.
+
+**D76 — Days 13–14: results chart, README, demo video plan** · 2026-11-26 · accepted
+- *Chart (`python -m zosimix.chart` → `results/chart.svg`):* overall pass rate per configuration (horizontal bars), and pass rate per fault type (grouped bars), on full-v2 with the regraded grades. Hand-written SVG, no plotting library. Its colours follow the viewer's light or dark theme through a media query.
+  - Palette: the first three categorical slots of the dataviz reference palette, validated in both modes (light: aqua is below 3:1 contrast, so the README carries the same numbers as a table, and the legend is always shown).
+  - Rounded data ends, bars anchored to the baseline, and a stub on the baseline for 0% results so they read as zero, not missing.
+  - The README table is generated from the same code, so the chart and the table agree.
+- *README:* chart at the top (with a placeholder for the video, DESIGN §6), the results table with the pass rule and partial credit, the task-by-task sign tests, how the harness works (tools table), the benchmark, the two engines with the parity result and its one exception, eval integrity, how to run, and credits. It includes "Designed by me, implemented by directing Claude Code." The revised harness is listed as work in progress (69% on dev, not yet measured on the test set).
+- *Demo video:* the storyboard is in `docs/demo-video.md` (AlbumDB audio only). Recording it is the owner's. A small helper to open the broken and repaired projects in FL for one task would make shots 2 and 4 easier; not built yet.

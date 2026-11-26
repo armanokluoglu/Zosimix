@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 560" role="img" aria-label="Pass rate on the full-v2 benchmark"><style>
+  .surface { fill: #fcfcfb; } .t1 { fill: #0b0b0b; } .t2 { fill: #52514e; } .grid { stroke: #e4e2dc; }
+  .s1 { fill: #2a78d6; } .s2 { fill: #eb6834; } .s3 { fill: #1baf7a; }
+  @media (prefers-color-scheme: dark) {
+    .surface { fill: #1a1a19; } .t1 { fill: #f0efec; } .t2 { fill: #c3c2b7; } .grid { stroke: #34332f; }
+    .s1 { fill: #3987e5; } .s2 { fill: #d95926; } .s3 { fill: #199e70; }
+  }
+  text { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+</style>
+<rect class="surface" x="0" y="0" width="760" height="560" rx="8"/>
+<text class="t1" x="24" y="36" font-size="18" font-weight="600">Pass rate on the full-v2 benchmark</text>
+<line class="grid" x1="200" y1="60" x2="200" y2="162" stroke-width="1"/>
+<text class="t2" x="200" y="178" font-size="11" text-anchor="middle">0%</text>
+<line class="grid" x1="307.5" y1="60" x2="307.5" y2="162" stroke-width="1"/>
+<text class="t2" x="307.5" y="178" font-size="11" text-anchor="middle">25%</text>
+<line class="grid" x1="415.0" y1="60" x2="415.0" y2="162" stroke-width="1"/>
+<text class="t2" x="415.0" y="178" font-size="11" text-anchor="middle">50%</text>
+<line class="grid" x1="522.5" y1="60" x2="522.5" y2="162" stroke-width="1"/>
+<text class="t2" x="522.5" y="178" font-size="11" text-anchor="middle">75%</text>
+<line class="grid" x1="630.0" y1="60" x2="630.0" y2="162" stroke-width="1"/>
+<text class="t2" x="630.0" y="178" font-size="11" text-anchor="middle">100%</text>
+<text class="t1" x="188" y="81" font-size="13" text-anchor="end">Zosimix harness</text>
+<path class="s1" d="M200,66 H415.77777777777777 Q419.77777777777777,66 419.77777777777777,70.0 V84.0 Q419.77777777777777,88 415.77777777777777,88 H200 Z"/>
+<text class="t1" x="427.77777777777777" y="81" font-size="13" font-weight="600">51%</text>
+<text class="t2" x="465.77777777777777" y="81" font-size="11">46/90 runs</text>
+<text class="t1" x="188" y="115" font-size="13" text-anchor="end">Plain Claude Code</text>
+<path class="s2" d="M200,100 H353.66666666666663 Q357.66666666666663,100 357.66666666666663,104.0 V118.0 Q357.66666666666663,122 353.66666666666663,122 H200 Z"/>
+<text class="t1" x="365.66666666666663" y="115" font-size="13" font-weight="600">37%</text>
+<text class="t2" x="403.66666666666663" y="115" font-size="11">33/90 runs</text>
+<text class="t1" x="188" y="149" font-size="13" text-anchor="end">flstudio-mcp</text>
+<path class="s3" d="M200,134 H253.33333333333331 Q257.3333333333333,134 257.3333333333333,138.0 V152.0 Q257.3333333333333,156 253.33333333333331,156 H200 Z"/>
+<text class="t1" x="265.3333333333333" y="149" font-size="13" font-weight="600">13%</text>
+<text class="t2" x="303.3333333333333" y="149" font-size="11">12/90 runs</text>
+<text class="t1" x="24" y="228" font-size="14" font-weight="600">By fault type</text>
+<rect class="s1" x="200" y="217" width="12" height="12" rx="2"/>
+<text class="t2" x="218" y="228" font-size="12">Zosimix harness</text>
+<rect class="s2" x="370" y="217" width="12" height="12" rx="2"/>
+<text class="t2" x="388" y="228" font-size="12">Plain Claude Code</text>
+<rect class="s3" x="540" y="217" width="12" height="12" rx="2"/>
+<text class="t2" x="558" y="228" font-size="12">flstudio-mcp</text>
+<line class="grid" x1="64" y1="500" x2="736" y2="500" stroke-width="1"/>
+<text class="t2" x="56" y="504" font-size="11" text-anchor="end">0%</text>
+<line class="grid" x1="64" y1="437.5" x2="736" y2="437.5" stroke-width="1"/>
+<text class="t2" x="56" y="441.5" font-size="11" text-anchor="end">25%</text>
+<line class="grid" x1="64" y1="375.0" x2="736" y2="375.0" stroke-width="1"/>
+<text class="t2" x="56" y="379.0" font-size="11" text-anchor="end">50%</text>
+<line class="grid" x1="64" y1="312.5" x2="736" y2="312.5" stroke-width="1"/>
+<text class="t2" x="56" y="316.5" font-size="11" text-anchor="end">75%</text>
+<line class="grid" x1="64" y1="250.0" x2="736" y2="250.0" stroke-width="1"/>
+<text class="t2" x="56" y="254.0" font-size="11" text-anchor="end">100%</text>
+<path class="s1" d="M77.0,500.0 V254.0 Q77.0,250.0 81.0,250.0 H95.0 Q99.0,250.0 99.0,254.0 V500.0 Z"/>
+<path class="s2" d="M101.0,500.0 V420.6666666666667 Q101.0,416.6666666666667 105.0,416.6666666666667 H119.0 Q123.0,416.6666666666667 123.0,420.6666666666667 V500.0 Z"/>
+<rect class="s3" x="125.0" y="498" width="22.0" height="2"/>
+<text class="t1" x="112.0" y="518" font-size="12" text-anchor="middle">clipping</text>
+<path class="s1" d="M173.0,500.0 V254.0 Q173.0,250.0 177.0,250.0 H191.0 Q195.0,250.0 195.0,254.0 V500.0 Z"/>
+<path class="s2" d="M197.0,500.0 V274.83333333333337 Q197.0,270.83333333333337 201.0,270.83333333333337 H215.0 Q219.0,270.83333333333337 219.0,274.83333333333337 V500.0 Z"/>
+<path class="s3" d="M221.0,500.0 V295.66666666666663 Q221.0,291.66666666666663 225.0,291.66666666666663 H239.0 Q243.0,291.66666666666663 243.0,295.66666666666663 V500.0 Z"/>
+<text class="t1" x="208.0" y="518" font-size="12" text-anchor="middle">control</text>
+<path class="s1" d="M269.0,500.0 V370.66666666666663 Q269.0,366.66666666666663 273.0,366.66666666666663 H287.0 Q291.0,366.66666666666663 291.0,370.66666666666663 V500.0 Z"/>
+<path class="s2" d="M293.0,500.0 V420.6666666666667 Q293.0,416.6666666666667 297.0,416.6666666666667 H311.0 Q315.0,416.6666666666667 315.0,420.6666666666667 V500.0 Z"/>
+<rect class="s3" x="317.0" y="498" width="22.0" height="2"/>
+<text class="t1" x="304.0" y="518" font-size="12" text-anchor="middle">polarity</text>
+<path class="s1" d="M365.0,500.0 V379.0 Q365.0,375.0 369.0,375.0 H383.0 Q387.0,375.0 387.0,379.0 V500.0 Z"/>
+<path class="s2" d="M389.0,500.0 V358.16666666666663 Q389.0,354.16666666666663 393.0,354.16666666666663 H407.0 Q411.0,354.16666666666663 411.0,358.16666666666663 V500.0 Z"/>
+<rect class="s3" x="413.0" y="498" width="22.0" height="2"/>
+<text class="t1" x="400.0" y="518" font-size="12" text-anchor="middle">pan</text>
+<path class="s1" d="M461.0,500.0 V420.6666666666667 Q461.0,416.6666666666667 465.0,416.6666666666667 H479.0 Q483.0,416.6666666666667 483.0,420.6666666666667 V500.0 Z"/>
+<rect class="s2" x="485.0" y="498" width="22.0" height="2"/>
+<path class="s3" d="M509.0,500.0 V462.3333333333333 Q509.0,458.3333333333333 513.0,458.3333333333333 H527.0 Q531.0,458.3333333333333 531.0,462.3333333333333 V500.0 Z"/>
+<text class="t1" x="496.0" y="518" font-size="12" text-anchor="middle">gain</text>
+<path class="s1" d="M557.0,500.0 V420.6666666666667 Q557.0,416.6666666666667 561.0,416.6666666666667 H575.0 Q579.0,416.6666666666667 579.0,420.6666666666667 V500.0 Z"/>
+<path class="s2" d="M581.0,500.0 V379.0 Q581.0,375.0 585.0,375.0 H599.0 Q603.0,375.0 603.0,379.0 V500.0 Z"/>
+<rect class="s3" x="605.0" y="498" width="22.0" height="2"/>
+<text class="t1" x="592.0" y="518" font-size="12" text-anchor="middle">resonance</text>
+<rect class="s1" x="653.0" y="498" width="22.0" height="2"/>
+<rect class="s2" x="677.0" y="498" width="22.0" height="2"/>
+<rect class="s3" x="701.0" y="498" width="22.0" height="2"/>
+<text class="t1" x="688.0" y="518" font-size="12" text-anchor="middle">mud</text>
+<text class="t2" x="24" y="546" font-size="11">30 injected-fault tasks x 3 repeats, Claude Sonnet 5.5. Pass = right fault on the right stem, repaired, nothing else changed.</text>
+</svg>
