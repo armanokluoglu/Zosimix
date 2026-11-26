@@ -596,3 +596,13 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - With the cap the noted mud tasks pass 7/16, partial credit 0.44 → 0.54.
   - Still failing: snares whose natural hump pulls the centre away, a 4 dB vocal boost, and a 6 dB sax boost cut too deep.
 - *Gain:* the remaining test misses are 3 dB changes on stems without a twin, two with no note. Left as a ceiling: nothing in the stems says where those stems should sit.
+
+**D82 — Held-out result: harness 63%, plain Claude Code 43%** · 2026-11-26 · accepted (owner: "run harness + plain claude code")
+- *Run `holdout-1`:* commit cfabd46, 30 held-out tasks, 1 repeat, 4 workers. Harness 19/30 (partial 0.66), plain 13/30 (0.45).
+  - By task 6–0 for the harness (sign test p ≈ 0.03), the first harness-vs-plain difference under 5%.
+  - Harness output tokens per task: 815, against 2,521 for plain.
+  - No integrity flags, no timeouts.
+- *Generalisation:* 20/30 on the tuning set full-v2 (D78) and 19/30 on unseen songs.
+- *Caveats on the page:* no polarity tasks (AlbumDB drums can't host them); mud is 0/5 for both; resonance is 2/5; one repeat; flstudio-mcp not run on these songs.
+- *Runtime:* the held-out songs have 25–35 stems, so runs took a median 75–82 s and the whole run 30 min (one plain run took 12 min).
+- The README now leads its results section with this number. Page: `results/holdout.md`.

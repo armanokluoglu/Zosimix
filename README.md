@@ -10,6 +10,10 @@ Claude can't listen to audio. Zosimix gives it a way to "hear" a multitrack mix 
 
 ## Results
 
+**On six songs held out from all tuning** (30 tasks, 1 repeat), the harness passes **63%** against **43%** for plain Claude Code. It wins 6 tasks and loses none (sign test p ≈ 0.03), using a third of the output tokens: [results/holdout.md](results/holdout.md).
+
+The table and chart below are the earlier full benchmark (full-v2), with three repeats and all three configurations.
+
 Every configuration runs the same model (Claude Sonnet 5.5) on the same 30 tasks, 3 times each. The difference between them is the tools the model is given.
 
 | | Zosimix harness | Plain Claude Code | [flstudio-mcp](https://github.com/rosasynthesiz/flstudio-mcp) |
