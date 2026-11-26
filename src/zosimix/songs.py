@@ -26,6 +26,8 @@ DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "songs"
 # learned from every song in DATA_ROOT, so adding songs there would change what the harness
 # shows on the test tasks.
 DEV_ROOT = DATA_ROOT.parent / "dev_songs"
+# The held-out test set's songs (D81): never used for tuning, only for the final measurement.
+HOLDOUT_ROOT = DATA_ROOT.parent / "holdout_songs"
 HEADROOM_DBFS = -1.0          # the clean mix of every song is scaled to peak here (D40)
 
 # Instrument families, used for stem selection and for vague client hints.
@@ -92,12 +94,12 @@ def list_songs(root: Path = DATA_ROOT) -> list[Song]:
 
 
 def find_song(song_id: str, root: Path = DATA_ROOT) -> Song:
-    """A song by id, from `root` or else from the development set's folder."""
-    for folder in (root, DEV_ROOT):
+    """A song by id, from `root` or else from the development or held-out set's folder."""
+    for folder in (root, DEV_ROOT, HOLDOUT_ROOT):
         match = next((s for s in list_songs(folder) if s.song_id == song_id), None)
         if match:
             return match
-    raise ValueError(f"song {song_id!r} not found in {root} or {DEV_ROOT}")
+    raise ValueError(f"song {song_id!r} not found in {root}, {DEV_ROOT} or {HOLDOUT_ROOT}")
 
 
 @dataclass

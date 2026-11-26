@@ -66,7 +66,7 @@ CONFIGS = {
     "zosimix-noverify": {"tools": "zosimix", "skill": True, "server_args": ["--no-verify"]},
     "zosimix-notarget": {"tools": "zosimix", "skill": True, "target": False},
     "zosimix-notriage": {"tools": "zosimix", "skill": True, "server_args": ["--no-triage"]},
-    "zosimix-spectrogram": {"tools": "zosimix", "skill": True, "server_args": ["--spectrogram"]},
+    "zosimix-nospectrogram": {"tools": "zosimix", "skill": True, "server_args": ["--no-spectrogram"]},
     "plain":           {"tools": "plain", "skill": False},
     "flmcp":           {"tools": "flmcp", "skill": False},
 }
@@ -74,8 +74,8 @@ CONFIGS = {
 # Strings that should never appear in an agent's tool calls: they point at answers (D25, D51).
 # Task files are matched by prefix, so revised sets (tasks/full-v2.json, D69) are covered too.
 FORBIDDEN = [str(REPO).lower(), str(REPO).lower().replace("\\", "/"), "groundtruth", "tasks\\smoke",
-             "tasks/smoke", "tasks\\full", "tasks/full", "results.jsonl",
-             "zosimix\\runs", "zosimix/runs"]
+             "tasks/smoke", "tasks\\full", "tasks/full", "tasks\\dev", "tasks/dev", "tasks\\holdout",
+             "tasks/holdout", "results.jsonl", "zosimix\\runs", "zosimix/runs"]
 
 # Keys that only exist in ground-truth files (task specs, results.jsonl). Nothing the agent is
 # given contains them, so seeing one in a tool *result* means answers reached the agent,

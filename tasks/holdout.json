@@ -1,0 +1,446 @@
+{
+  "set": "holdout",
+  "seed": 81,
+  "tasks": [
+    {
+      "task_id": "holdout-001",
+      "song_id": "albumdb-05-diva",
+      "fault": {
+        "type": "gain",
+        "stem": "guitar_electric_rhythm_r",
+        "severity": 1,
+        "params": {
+          "gain_db": 6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The guitars feel too loud."
+    },
+    {
+      "task_id": "holdout-002",
+      "song_id": "albumdb-06-let-the-light-in",
+      "fault": {
+        "type": "resonance",
+        "stem": "guitar_electric_rhythm_l",
+        "severity": 0,
+        "params": {
+          "freq_hz": 2616.3,
+          "gain_db": 7.7,
+          "q": 8.0,
+          "mix_rise_db": 2.03
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-003",
+      "song_id": "albumdb-07-take-on-the-seas",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "holdout-004",
+      "song_id": "albumdb-03-karma",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_lead_l",
+        "severity": 0,
+        "params": {
+          "freq_hz": 362.6,
+          "gain_db": 8.0,
+          "q": 1.0,
+          "mix_rise_db": 1.01
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-005",
+      "song_id": "albumdb-09-great-british-summer",
+      "fault": {
+        "type": "pan",
+        "stem": "keys_synth_4",
+        "severity": 0,
+        "params": {
+          "pan": -0.3
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "holdout-006",
+      "song_id": "albumdb-04-magistrates",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_rhythm_2_l",
+        "severity": 1,
+        "params": {
+          "depth_db": 12.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    },
+    {
+      "task_id": "holdout-007",
+      "song_id": "albumdb-04-magistrates",
+      "fault": {
+        "type": "gain",
+        "stem": "keys_piano",
+        "severity": 2,
+        "params": {
+          "gain_db": -10.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-008",
+      "song_id": "albumdb-09-great-british-summer",
+      "fault": {
+        "type": "resonance",
+        "stem": "vox_lead",
+        "severity": 1,
+        "params": {
+          "freq_hz": 5620.2,
+          "gain_db": 9.9,
+          "q": 8.0,
+          "mix_rise_db": 4.04
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the vocals sounds harsh or ringy."
+    },
+    {
+      "task_id": "holdout-009",
+      "song_id": "albumdb-05-diva",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "holdout-010",
+      "song_id": "albumdb-07-take-on-the-seas",
+      "fault": {
+        "type": "mud",
+        "stem": "vox_lead",
+        "severity": 1,
+        "params": {
+          "freq_hz": 326.3,
+          "gain_db": 10.5,
+          "q": 1.0,
+          "mix_rise_db": 2.01
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-011",
+      "song_id": "albumdb-06-let-the-light-in",
+      "fault": {
+        "type": "pan",
+        "stem": "vox_lead",
+        "severity": 1,
+        "params": {
+          "pan": -0.6
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "holdout-012",
+      "song_id": "albumdb-03-karma",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_acoustic_main",
+        "severity": 2,
+        "params": {
+          "depth_db": 18.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-013",
+      "song_id": "albumdb-05-diva",
+      "fault": {
+        "type": "gain",
+        "stem": "drums_kick",
+        "severity": 0,
+        "params": {
+          "gain_db": 3.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-014",
+      "song_id": "albumdb-06-let-the-light-in",
+      "fault": {
+        "type": "resonance",
+        "stem": "guitar_electric_rhythm_l",
+        "severity": 2,
+        "params": {
+          "freq_hz": 2395.6,
+          "gain_db": 16.5,
+          "q": 8.0,
+          "mix_rise_db": 6.07
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-015",
+      "song_id": "albumdb-09-great-british-summer",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-016",
+      "song_id": "albumdb-07-take-on-the-seas",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_main",
+        "severity": 2,
+        "params": {
+          "freq_hz": 273.6,
+          "gain_db": 11.7,
+          "q": 1.0,
+          "mix_rise_db": 3.05
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-017",
+      "song_id": "albumdb-04-magistrates",
+      "fault": {
+        "type": "pan",
+        "stem": "vox_lead",
+        "severity": 2,
+        "params": {
+          "pan": -0.9
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-018",
+      "song_id": "albumdb-03-karma",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_lead_l",
+        "severity": 0,
+        "params": {
+          "depth_db": 6.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-019",
+      "song_id": "albumdb-05-diva",
+      "fault": {
+        "type": "gain",
+        "stem": "drums_snare_2",
+        "severity": 1,
+        "params": {
+          "gain_db": -6.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "I can barely hear the drums."
+    },
+    {
+      "task_id": "holdout-020",
+      "song_id": "albumdb-07-take-on-the-seas",
+      "fault": {
+        "type": "resonance",
+        "stem": "guitar_acoustic_solo_l",
+        "severity": 0,
+        "params": {
+          "freq_hz": 807.5,
+          "gain_db": 13.3,
+          "q": 8.0,
+          "mix_rise_db": 2.01
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the guitars sounds harsh or ringy."
+    },
+    {
+      "task_id": "holdout-021",
+      "song_id": "albumdb-03-karma",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "holdout-022",
+      "song_id": "albumdb-09-great-british-summer",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_intro",
+        "severity": 0,
+        "params": {
+          "freq_hz": 350.6,
+          "gain_db": 11.9,
+          "q": 1.0,
+          "mix_rise_db": 1.01
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-023",
+      "song_id": "albumdb-06-let-the-light-in",
+      "fault": {
+        "type": "pan",
+        "stem": "guitar_electric_solo_c",
+        "severity": 0,
+        "params": {
+          "pan": 0.3
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "holdout-024",
+      "song_id": "albumdb-04-magistrates",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_octaves",
+        "severity": 1,
+        "params": {
+          "depth_db": 12.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    },
+    {
+      "task_id": "holdout-025",
+      "song_id": "albumdb-07-take-on-the-seas",
+      "fault": {
+        "type": "gain",
+        "stem": "guitar_acoustic_solo_r",
+        "severity": 2,
+        "params": {
+          "gain_db": 10.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The guitars feel too loud."
+    },
+    {
+      "task_id": "holdout-026",
+      "song_id": "albumdb-05-diva",
+      "fault": {
+        "type": "resonance",
+        "stem": "guitar_electric_heavy_r",
+        "severity": 1,
+        "params": {
+          "freq_hz": 2131.8,
+          "gain_db": 16.8,
+          "q": 8.0,
+          "mix_rise_db": 4.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the guitars sounds harsh or ringy."
+    },
+    {
+      "task_id": "holdout-027",
+      "song_id": "albumdb-06-let-the-light-in",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "holdout-028",
+      "song_id": "albumdb-04-magistrates",
+      "fault": {
+        "type": "mud",
+        "stem": "bass",
+        "severity": 1,
+        "params": {
+          "freq_hz": 306.4,
+          "gain_db": 6.7,
+          "q": 1.0,
+          "mix_rise_db": 2.05
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "holdout-029",
+      "song_id": "albumdb-03-karma",
+      "fault": {
+        "type": "pan",
+        "stem": "vox_lead_outro",
+        "severity": 1,
+        "params": {
+          "pan": -0.6
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "holdout-030",
+      "song_id": "albumdb-09-great-british-summer",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_rhythm",
+        "severity": 2,
+        "params": {
+          "depth_db": 18.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    }
+  ]
+}
