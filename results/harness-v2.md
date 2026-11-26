@@ -154,6 +154,30 @@ The next step is the targeted test rerun (resonance, mud and controls), held unt
 
 Most of a run's time is the agent itself (about 35 s); building the workspace and grading take about 6 s. The runner now takes `--workers N` and runs several tasks at once (flstudio-mcp stays at 1, since there's one FL). The 36-run dev check took 12 minutes with 4 workers, about half the time one at a time. Each run took longer when four ran together, because their measurement servers competed for cores. So each server's threads are now capped at its share of the cores.
 
+## Round 3: triage, mistaken pans, twin levels (D74)
+
+Before the test rerun, the owner asked to dig deeper. Again everything was tuned and checked on the dev songs only, so **there are no new test-set numbers.**
+
+- **`triage`**: one call that runs every objective check: clipping, drum polarity, mistaken pans and twin levels, plus the top mud and resonance suspects. The skill starts every task with it. On full-v2 the harness failed both polarity tasks that had no client note, while passing the ones with a note. The phase tool already points at the right mic (oracle 5/5), so the check now always runs, and a clear flip is acted on without a note.
+- **Mistaken pan = mono, off centre, no twin.** A pan fault leaves a stem exactly mono at unequal levels. Parts panned on purpose in these songs are stereo or come as `_l`/`_r` pairs. On injected dev faults the faulty stem was the only suspect in 24/24, and nothing was flagged in either clean mix. This replaces the "mix leans" gate, which caught only about half of the pan faults.
+- **Twin levels.** `_l`/`_r` twins more than 5 LU apart; clean twins in the dev songs sit within 4 LU. Without a note, the twin further from its family's typical level is the faulty one 71% of the time. The skill acts with a level note, or without one when the gap is 8 LU or more.
+- **4× faster polarity check:** the lag search runs on every 10th sample of the low-passed signals, 21.4 s → 4.9 s, with identical results. The flip value the grader uses doesn't change.
+- **Polarity can't be tuned on dev:** every polarity-capable mic setup in our songs is already used by a test task, and AlbumDB has no multi-mic drums. The smoke polarity task passed 3/3, a sanity check only.
+
+| Dev set (regraded) | Pass | Partial | Mud | Resonance | Pan | Control | Clipping | Gain |
+|---|---|---|---|---|---|---|---|---|
+| Before D72 (1 repeat) | 8/18 = 44% | 0.51 | 0/3 | 0/3 | 2/3 | 3/3 | 3/3 | 0/3 |
+| After D73 (2 repeats) | 23/36 = 64% | 0.64 | 4/6 | 4/6 | 3/6 | 6/6 | 6/6 | 0/6 |
+| **After D74 (2 repeats)** | **25/36 = 69%** | **0.70** | 3/6 | 4/6 | **6/6** | 6/6 | 6/6 | 0/6 |
+
+Without the dev set's three gain tasks, which need a reference mix, the current harness passes 25/30 = 83% on dev. Mud is 3/6 against 4/6 in round 2. Both rounds miss the same snare task every time, and the other two mud tasks pass most runs, so the difference is within run-to-run noise at 2 repeats. What's still out of reach, and why:
+
+| Weak spot | Why |
+|---|---|
+| Gain without a level note | Nothing in the stems says where a stem should sit; only twin pairs give a reference. |
+| Mud on a snare | The snare's natural low-mid hump hides where the boost is centred. Finer per-family profiles could fix this. |
+| Resonance on a lead vocal | A moving pitch hides a fixed boost from the detector. |
+
 ## Data
 
 The songs come from MoisesDB and AlbumDB.
