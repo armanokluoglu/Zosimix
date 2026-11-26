@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zosimix import analysis, audio
+from zosimix import analysis, audio, spectrogram
 from zosimix.engines.base import MixEngine
 from zosimix.mixstate import MAX_EQ_BANDS, EqBand, MixState
 from zosimix.songs import family_of
@@ -136,6 +136,17 @@ class MixSession:
         peak_txt = "; ".join(f"{p.freq_hz:.0f} Hz +{p.excess_db:.1f} dB Q~{p.q:.0f}" for p in peaks) or "none"
         return (f"{stem} {lo_hz:.0f}-{hi_hz:.0f} Hz\npersistent bumps (resonance candidates): {peak_txt}\n"
                 f"1/3-oct level re max (Hz:dB): {levels}")
+
+    def spectrogram(self, stem: str, lo_hz: float = 20.0, hi_hz: float = 20000.0) -> bytes:
+        """PNG of one stem's (or the MIX's) spectrogram over the whole song (ablation tool, D78)."""
+        if stem == "MIX":
+            signal = self.engine.render()
+        else:
+            self._check_stem(stem)
+            signal = self.engine.render_stems()[stem]
+        if not 20.0 <= lo_hz < hi_hz <= 20000.0:
+            raise ValueError("need 20 <= lo_hz < hi_hz <= 20000")
+        return spectrogram.png(spectrogram.image(signal, self.engine.sample_rate, lo_hz, hi_hz))
 
     def compare(self, stem_a: str, stem_b: str) -> str:
         """Band-by-band levels of two stems, to spot masking (both strong in the same band)."""

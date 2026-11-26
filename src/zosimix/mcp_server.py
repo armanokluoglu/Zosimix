@@ -3,7 +3,9 @@
 The tool descriptions below are what the agent reads, so they are written for it.
 
 Run (normally started by Claude Code from an MCP config, one server per task workspace):
-    python -m zosimix.mcp_server --workspace <task workspace> [--no-verify]
+    python -m zosimix.mcp_server --workspace <task workspace> [--no-verify] [--no-triage] [--spectrogram]
+
+The flags switch parts on or off for the ablations (DESIGN.md §5, D78).
 
 The workspace is the folder built by zosimix.tasks.materialize: stems/*.wav, brief.md and,
 optionally, tonal_target.json. Results are written to <workspace>/output/.
@@ -15,7 +17,7 @@ import argparse
 import json
 from pathlib import Path
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Image, MCPServer
 
 from zosimix.engines.offline import OfflineEngine
 from zosimix.tools import MixSession
@@ -30,8 +32,11 @@ Some problems (e.g. clipping baked into a recording) cannot be fixed with these 
 report them with verdict "unfixable" instead of changing anything."""
 
 
-def build_server(session: MixSession) -> MCPServer:
-    server = MCPServer(name="zosimix", instructions=INSTRUCTIONS)
+def build_server(session: MixSession, triage_tools: bool = True, spectrogram_tool: bool = False) -> MCPServer:
+    """All the agent's tools. triage_tools=False leaves out triage and scan, and spectrogram_tool=True adds
+    the spectrogram picture: both are ablation switches (D78)."""
+    instructions = INSTRUCTIONS if triage_tools else INSTRUCTIONS.replace("triage -> ", "").replace("scan, ", "")
+    server = MCPServer(name="zosimix", instructions=instructions)
 
     @server.tool()
     def overview() -> str:
@@ -65,23 +70,34 @@ def build_server(session: MixSession) -> MCPServer:
         target learned from other professionally mixed songs. Reports z-scores per band."""
         return session.tonal_balance(stem)
 
-    @server.tool()
-    def triage() -> str:
-        """Start here. Runs every objective check at once (clipping, drum polarity, mistaken pans)
-        and lists the top mud and resonance suspects. Clipping, polarity and pan findings are
-        evidence on their own; mud and resonance only count with a matching client note."""
-        return session.triage()
+    if triage_tools:
+        @server.tool()
+        def triage() -> str:
+            """Start here. Runs every objective check at once (clipping, drum polarity, mistaken pans)
+            and lists the top mud and resonance suspects. Clipping, polarity and pan findings are
+            evidence on their own; mud and resonance only count with a matching client note."""
+            return session.triage()
 
-    @server.tool()
-    def scan(measure: str, family: str | None = None) -> str:
-        """Rank every stem (or one instrument family's: vocals, drums, bass, guitars, keys, ...) on
-        one measure, to find the outlier in one call.
-        measure="peaks": each stem's strongest persistent spectral bump, 300-8000 Hz (resonances).
-        measure="lowmid": stems ranked by their part in the MIX's low-mids and how far above
-        typical they are, with the cut that would undo the top suspects' bump (mud).
-        measure="pan": the MIX's balance and every mono stem that sits off centre with no twin,
-        with the pan setting that re-centres it (mistaken pans)."""
-        return session.scan(measure, family)
+        @server.tool()
+        def scan(measure: str, family: str | None = None) -> str:
+            """Rank every stem (or one instrument family's: vocals, drums, bass, guitars, keys, ...) on
+            one measure, to find the outlier in one call.
+            measure="peaks": each stem's strongest persistent spectral bump, 300-8000 Hz (resonances).
+            measure="lowmid": stems ranked by their part in the MIX's low-mids and how far above
+            typical they are, with the cut that would undo the top suspects' bump (mud).
+            measure="pan": the MIX's balance and every mono stem that sits off centre with no twin,
+            with the pan setting that re-centres it (mistaken pans)."""
+            return session.scan(measure, family)
+
+    if spectrogram_tool:
+        @server.tool()
+        def spectrogram(stem: str, lo_hz: float = 20.0, hi_hz: float = 20000.0) -> Image:
+            """A picture of one stem (or "MIX") over the whole song: time left to right, frequency
+            bottom to top on a log scale from lo_hz to hi_hz, brightness = loudness (80 dB range).
+            Faint horizontal lines mark 100 Hz, 1 kHz and 10 kHz. A resonance shows as a bright
+            horizontal line that stays at one frequency while the notes move; mud as a bright band
+            low down; clipping as smeared vertical streaks."""
+            return Image(data=session.spectrogram(stem, lo_hz, hi_hz), format="png")
 
     @server.tool()
     def get_mix_state() -> str:
@@ -144,12 +160,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--workspace", type=Path, required=True)
     ap.add_argument("--no-verify", action="store_true", help="ablation: commit_changes reports nothing")
+    ap.add_argument("--no-triage", action="store_true", help="ablation: leave out the triage and scan tools")
+    ap.add_argument("--spectrogram", action="store_true", help="ablation: add the spectrogram picture tool")
     args = ap.parse_args()
     target_path = args.workspace / "tonal_target.json"
     target = json.loads(target_path.read_text(encoding="utf-8")) if target_path.exists() else None
     session = MixSession(OfflineEngine.from_workspace(args.workspace), target,
                          output_dir=args.workspace / "output", verify=not args.no_verify)
-    build_server(session).run("stdio")
+    build_server(session, triage_tools=not args.no_triage, spectrogram_tool=args.spectrogram).run("stdio")
 
 
 if __name__ == "__main__":

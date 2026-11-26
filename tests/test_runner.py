@@ -215,3 +215,26 @@ def test_parallel_workers_write_one_row_per_run(isolated, monkeypatch):
     runner.run("t", ["zosimix"], 2, "sonnet", "r9", workers=4)
     keys = sorted((r["task_id"], r["repeat"]) for r in results(isolated))
     assert keys == [(f"t-00{i}", rep) for i in (1, 2, 3) for rep in (1, 2)]
+
+
+@pytest.mark.parametrize("config, flag", [("zosimix-noverify", "--no-verify"), ("zosimix-notriage", "--no-triage"),
+                                          ("zosimix-spectrogram", "--spectrogram")])
+def test_ablation_configs_pass_their_switch_to_the_server(tmp_path, monkeypatch, config, flag):
+    monkeypatch.setattr(runner, "_claude", lambda: "claude")
+    ws = tmp_path / "work" / "ws"
+    ws.mkdir(parents=True)
+    runner.build_command(config, ws, "sonnet", "brief")
+    args = json.loads((tmp_path / "work" / "mcp.json").read_text(encoding="utf-8"))["mcpServers"]["zosimix"]["args"]
+    assert flag in args and "--append-system-prompt-file" in runner.build_command(config, ws, "sonnet", "brief")
+
+
+def test_no_target_ablation_gets_no_tonal_target(isolated, monkeypatch):
+    seen = {}
+
+    def capture(config, workspace, model, prompt):
+        seen["target"] = (workspace / "tonal_target.json").exists()
+        return fake({"diagnosis": {"verdict": "no_fault", "findings": []}, "mix_state": {}})(config, workspace, model, prompt)
+
+    monkeypatch.setattr(runner, "build_command", capture)
+    runner.run("t", ["zosimix-notarget"], 1, "sonnet", "r10")
+    assert seen["target"] is False

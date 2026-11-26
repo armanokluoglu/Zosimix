@@ -62,6 +62,11 @@ SKILL_PATH = REPO / "skills" / "zosimix-diagnosis" / "SKILL.md"
 CONFIGS = {
     "zosimix":         {"tools": "zosimix", "skill": True},
     "zosimix-noskill": {"tools": "zosimix", "skill": False},
+    # Ablations (DESIGN.md §5, D78): the full layer with one part switched off, or the picture tool added.
+    "zosimix-noverify": {"tools": "zosimix", "skill": True, "server_args": ["--no-verify"]},
+    "zosimix-notarget": {"tools": "zosimix", "skill": True, "target": False},
+    "zosimix-notriage": {"tools": "zosimix", "skill": True, "server_args": ["--no-triage"]},
+    "zosimix-spectrogram": {"tools": "zosimix", "skill": True, "server_args": ["--spectrogram"]},
     "plain":           {"tools": "plain", "skill": False},
     "flmcp":           {"tools": "flmcp", "skill": False},
 }
@@ -168,7 +173,8 @@ def build_command(config: str, workspace: Path, model: str, prompt: str) -> list
         return [_claude(), *common, "--restricted", "--mcp-config", str(mcp_path), "--tools", "Write",
                 "--allowedTools", allowed, "--disallowedTools", hidden]
     mcp = {"mcpServers": {"zosimix": {"command": sys.executable,
-                                      "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace)]}}}
+                                      "args": ["-m", "zosimix.mcp_server", "--workspace", str(workspace),
+                                               *setup.get("server_args", [])]}}}
     mcp_path = workspace.parent / "mcp.json"            # beside the workspace, not in it
     mcp_path.write_text(json.dumps(mcp), encoding="utf-8")
     cmd = [_claude(), *common, "--mcp-config", str(mcp_path), "--tools", "", "--allowedTools", "mcp__zosimix__*"]
@@ -273,7 +279,10 @@ def run_one(spec: tasks.TaskSpec, config: str, repeat: int, run_dir: Path, model
     tools = CONFIGS[config]["tools"]
     if tools == "flmcp":
         return _run_one_fl(spec, config, repeat, run_dir, model, work)
-    tasks.materialize(spec, workspace, target=targets.target_for(spec.song_id, profiles))
+    # The no-target ablation gets no tonal_target.json, so tonal_balance and scan lowmid's z have nothing to
+    # compare with (D78).
+    target = targets.target_for(spec.song_id, profiles) if CONFIGS[config].get("target", True) else None
+    tasks.materialize(spec, workspace, target=target)
     (workspace / "output").mkdir(exist_ok=True)
     brief = spec.brief
     prompt = (ZOSIMIX_PROMPT.format(brief=brief) if tools == "zosimix"

@@ -176,3 +176,32 @@ def test_triage_runs_every_objective_check(target):
     for check in ("clipping", "pan (mono", "mud suspects", "resonance suspects"):
         assert check in out
     assert len(out) <= TOKEN_BUDGETS["triage"]
+
+
+def test_spectrogram_is_a_png_and_shows_a_ring_as_a_bright_row():
+    """D78: the picture tool. A fixed 2 kHz boost should light up the rows around 2 kHz."""
+    import struct
+    import zlib
+
+    from zosimix import spectrogram
+    s = session_with(faults.Fault("resonance", "vox_lead", 2, {"freq_hz": 2000.0, "gain_db": 18.0, "q": 8.0}))
+    data = s.spectrogram("vox_lead", 200, 20000)
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    width, height = struct.unpack(">II", data[16:24])
+    assert (width, height) == (spectrogram.WIDTH, spectrogram.HEIGHT)
+    idat = data[data.index(b"IDAT") + 4: data.index(b"IEND") - 8]
+    rows = np.frombuffer(zlib.decompress(idat), dtype=np.uint8).reshape(height, 1 + width * 3)[:, 1:]
+    brightness = rows.reshape(height, width, 3).astype(float).mean(axis=(1, 2))
+    freqs = np.geomspace(20000, 200, height)
+    near = brightness[np.abs(np.log2(freqs / 2000)) < 0.05].mean()
+    away = brightness[np.abs(np.log2(freqs / 2000)) > 0.5].mean()
+    assert near > away + 20
+
+
+def test_ablation_switches_add_and_remove_tools():
+    def names(**kw):
+        return {t.name for t in asyncio.run(build_server(session_with(None), **kw).list_tools())}
+    full = names()
+    assert {"triage", "scan"} <= full and "spectrogram" not in full
+    assert not {"triage", "scan"} & names(triage_tools=False)
+    assert "spectrogram" in names(spectrogram_tool=True)
