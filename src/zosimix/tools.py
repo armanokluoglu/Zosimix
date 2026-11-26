@@ -40,7 +40,8 @@ MEASURE_THREADS = int(os.environ.get("ZOSIMIX_MEASURE_THREADS", min(8, os.cpu_co
 SCAN_LINES = 14
 PAN_MONO_CORR = 0.99             # "essentially mono": a mistakenly panned mono track has L/R correlation ~1
 PAN_MIN_DB = 1.5                 # off centre by more than this (a 0.3 pan is about 4 dB)
-PAIR_SUFFIX = re.compile(r"(_l|_r|_1|_2|_left|_right)$")                  # stems listed by scan; the rest are summarised in one line
+PAIR_SUFFIX = re.compile(r"(_l|_r|_1|_2|_left|_right)$")
+TWIN_GAP_LU = 5.0                # twins further apart than this in loudness: one of them is off                  # stems listed by scan; the rest are summarised in one line
 MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
 
 BAND_LABELS = "sub low lmid mid hmid pres bril air"
@@ -236,7 +237,7 @@ class MixSession:
         polarity tasks on full-v2 while passing the ones with a note (D74). This runs them all."""
         metrics = self._stem_metrics()
         names = self.engine.stem_names
-        lines = ["TRIAGE (act on the first three without a note; the last two need a matching client note)"]
+        lines = ["TRIAGE (act on clipping, polarity and pan without a note; level, mud and resonance need a matching note or clear evidence, see the skill)"]
         clips = sorted(((metrics[n]["clips_per_min"], n) for n in names), reverse=True)
         typical = float(np.median([c for c, _ in clips])) if clips else 0.0
         hot = [f"{n} {c:.0f}/min" for c, n in clips[:3] if c >= max(10.0, 10 * typical)]
@@ -254,11 +255,38 @@ class MixSession:
         pans = self._pan_suspects(names)
         lines.append("pan (mono, off centre, no twin): " + (", ".join(
             f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f}" for n, b in pans) if pans else "none"))
+        lines.append(f"level (_l/_r twins more than {TWIN_GAP_LU:.0f} LU apart): " + self._twin_gaps(metrics))
         mud = self._scan_lowmid(names).splitlines()[1:3]
         lines.append("mud suspects (only with a muddy/boxy note): " + " | ".join(mud))
         res = self._scan_peaks(names).splitlines()[1:3]
         lines.append("resonance suspects (only with a harsh/ringy note): " + " | ".join(res))
         return "\n".join(lines)
+
+    def _twin_gaps(self, metrics: dict[str, dict]) -> str:
+        """L/R twins (doubled guitars, paired backing vocals) whose loudness differs by more than
+        TWIN_GAP_LU. Clean twins on the dev songs sat within 4 LU; a 6 dB gain fault on one twin
+        put them a median 5.7 LU apart, a 10 dB fault 10 LU. Which twin is off: the one further
+        from the median loudness of its family's other stems in this song, right 71% of the time
+        on injected dev faults with no client note to say which way (D74)."""
+        pairs: dict[str, list[str]] = {}
+        for n in self.engine.stem_names:
+            if PAIR_SUFFIX.search(n):
+                pairs.setdefault(PAIR_SUFFIX.sub("", n), []).append(n)
+        out = []
+        for a, b in (g for g in pairs.values() if len(g) == 2):
+            la, lb = metrics[a]["lufs"], metrics[b]["lufs"]
+            if not (math.isfinite(la) and math.isfinite(lb)) or abs(la - lb) <= TWIN_GAP_LU:
+                continue
+            peers = [metrics[n]["lufs"] for n in self.engine.stem_names
+                     if family_of(n) == family_of(a) and n not in (a, b) and math.isfinite(metrics[n]["lufs"])]
+            if len(peers) >= 2:
+                median = float(np.median(peers))
+                odd = a if abs(la - median) > abs(lb - median) else b
+                hint = f"; likelier off: {odd}"
+            else:
+                hint = ""
+            out.append(f"{a} {la:.1f} vs {b} {lb:.1f} LUFS ({abs(la - lb):.1f} LU apart{hint})")
+        return ", ".join(out) if out else "none"
 
     def _peaks(self, names: list[str]) -> dict[str, list[analysis.Peak]]:
         rendered = self.engine.render_stems()

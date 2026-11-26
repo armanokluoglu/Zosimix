@@ -21,6 +21,7 @@ BANDS = [
     ("highmid", 1000, 2500), ("presence", 2500, 5000), ("brilliance", 5000, 10000), ("air", 10000, 20000),
 ]
 SILENCE_DB = -70.0
+PHASE_DECIMATE = 10           # phase_report's lag search runs at sr/10 (D74)
 
 
 # ---------------------------------------------------------------- spectra
@@ -208,18 +209,22 @@ def phase_report(stems: dict[str, np.ndarray], sr: int, max_lag_ms: float = 10.0
     low = {n: lowpass_mono(stems[n][:length], sr) for n in names}
     bus = sum(low.values())
     bus_rms = np.sqrt(np.mean(bus ** 2))
-    max_lag = int(sr * max_lag_ms / 1000)
+    # The lag search runs on every PHASE_DECIMATE-th sample: the signals are low-passed at 500 Hz,
+    # so 4.4 kHz still holds them, and the search is about 10x cheaper. It took 16 s for five drum
+    # mics at full rate (D74). flip_db below, the number graders use, is still computed at full rate.
+    step = PHASE_DECIMATE
+    max_lag = int(sr * max_lag_ms / 1000) // step
     out = {}
     for n in names:
-        rest = bus - low[n]
-        a, b = low[n][max_lag:-max_lag], rest
+        rest = (bus - low[n])[::step]
+        a, b = low[n][::step][max_lag:-max_lag], rest
         best_corr, best_lag = 0.0, 0
-        for lag in range(-max_lag, max_lag + 1, max(1, max_lag // 100)):
+        for lag in range(-max_lag, max_lag + 1):
             seg = b[max_lag + lag: len(b) - max_lag + lag]
             denom = np.sqrt(np.dot(a, a) * np.dot(seg, seg))
             c = float(np.dot(a, seg) / denom) if denom > 0 else 0.0
             if abs(c) > abs(best_corr):
-                best_corr, best_lag = c, lag
+                best_corr, best_lag = c, lag * step
         flipped_rms = np.sqrt(np.mean((bus - 2 * low[n]) ** 2))
         out[n] = {
             "corr": round(best_corr, 3),
