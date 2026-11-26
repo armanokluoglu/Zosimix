@@ -194,31 +194,42 @@ class MixSession:
         keys = {n: ("peaks", n, self._key(n)) for n in names}
         todo = [n for n in names if keys[n] not in self._stem_cache]
         with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
-            found = pool.map(lambda n: analysis.persistent_peaks(rendered[n], sr, 300, 8000, limit=2), todo)
+            found = pool.map(lambda n: analysis.persistent_peaks(rendered[n], sr, 300, 8000, limit=3), todo)
             for name, peaks in zip(todo, found):
                 self._stem_cache[keys[name]] = peaks
         return {n: self._stem_cache[keys[n]] for n in names}
 
     def _scan_peaks(self, names: list[str]) -> str:
-        """Ranked by how far each stem's top bump stands above its own next bump. On the dev songs
-        that put an injected resonance first within its family 75% of the time, against 42% for
-        ranking by raw height: instruments with many natural bumps stop crowding the top (D73)."""
+        """Ranked by each stem's most audible bump: the bump's height times the stem's share of the
+        MIX's energy in the 1/3 octave around it. A ring you can hear in the mix comes from a stem
+        that carries that frequency in the mix; a tom's natural shell bump under loud guitars
+        doesn't. On the dev songs this put an injected resonance first in 24 of 24 cases, against
+        12% for raw height and 67% for a bump's lead over the stem's next one (D73)."""
         peaks = self._peaks(names)
+        metrics = self._stem_metrics()
+        freqs = metrics[names[0]]["freqs"]
+        power = {n: 10.0 ** (m["power_db"] / 10.0) for n, m in metrics.items()}
+        mix_power = sum(power.values())
 
-        def lead(n: str) -> float:
-            p = peaks[n]
-            return p[0].excess_db - (p[1].excess_db if len(p) > 1 else 0.0)
+        def third(x: np.ndarray, f: float) -> float:
+            return float(x[(freqs >= f * 2 ** (-1 / 6)) & (freqs < f * 2 ** (1 / 6))].sum())
 
-        ranked = sorted((n for n in names if peaks[n]), key=lambda n: -lead(n))
-        lines = [("strongest persistent bump per stem, 300-8000 Hz, ranked by how far it stands above the"
-                  " stem's next bump: freq, height above its surroundings, Q, lead over the next bump."
+        best = {}
+        for n in names:
+            options = [(third(power[n], b.freq_hz) / max(third(mix_power, b.freq_hz), 1e-30), b) for b in peaks[n]]
+            if options:
+                share, bump = max(options, key=lambda o: o[0] * o[1].excess_db)
+                best[n] = (share * bump.excess_db, share, bump)
+        ranked = sorted(best, key=lambda n: -best[n][0])
+        lines = [("most audible persistent bump per stem, 300-8000 Hz, ranked by height x the stem's share of"
+                  " the MIX at that frequency: freq, height above its surroundings, Q, share of mix."
                   " The height understates an EQ boost by about half.")]
         for n in ranked[:SCAN_LINES]:
-            p = peaks[n][0]
-            lines.append(f"{n}: {p.freq_hz:.0f} Hz +{p.excess_db:.1f} dB Q~{p.q:.0f} (leads by {lead(n):.1f})")
-        rest = len(ranked) - SCAN_LINES + len(names) - len(ranked)
+            _score, share, b = best[n]
+            lines.append(f"{n}: {b.freq_hz:.0f} Hz +{b.excess_db:.1f} dB Q~{b.q:.0f}, {share:.0%} of mix there")
+        rest = len(names) - min(len(ranked), SCAN_LINES)
         if rest > 0:
-            lines.append(f"({rest} more stems with smaller or no bumps)")
+            lines.append(f"({rest} more stems with smaller or no audible bumps)")
         return "\n".join(lines)
 
     def _scan_lowmid(self, names: list[str]) -> str:
