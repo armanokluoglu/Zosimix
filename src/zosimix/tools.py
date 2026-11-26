@@ -41,6 +41,7 @@ SCAN_LINES = 14
 PAN_MONO_CORR = 0.99             # "essentially mono": a mistakenly panned mono track has L/R correlation ~1
 PAN_MIN_DB = 1.5                 # off centre by more than this (a 0.3 pan is about 4 dB)
 PAIR_SUFFIX = re.compile(r"(_l|_r|_1|_2|_left|_right)$")
+MIX_LEAN_DB = 0.3                # a MIX leaning more than this is unbalanced (clean dev mixes: within 0.13 dB)
 TWIN_GAP_LU = 5.0                # twins further apart than this in loudness: one of them is off                  # stems listed by scan; the rest are summarised in one line
 MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
 
@@ -49,6 +50,14 @@ BAND_LABELS = "sub low lmid mid hmid pres bril air"
 
 def _fmt(v: float, digits: int = 1) -> str:
     return "-inf" if not math.isfinite(v) else f"{v:.{digits}f}"
+
+
+def is_centre_stem(name: str) -> bool:
+    """Parts that almost always sit in the centre of a mix: bass, kick, snare and the lead vocal."""
+    lowered = name.lower()
+    family = family_of(name)
+    return (family == "bass" or (family == "drums" and ("kick" in lowered or "snare" in lowered))
+            or (family == "vocals" and "lead" in lowered))
 
 
 class MixSession:
@@ -231,10 +240,26 @@ class MixSession:
         lines = [(f"MIX balance (R-L) {mix['balance_db']:+.2f} dB. Mono stems (corr >= {PAN_MONO_CORR}) more than"
                  f" {PAN_MIN_DB} dB off centre with no _l/_r twin (a mistaken pan looks like this):")]
         suspects = self._pan_suspects(names)
-        lines += [f"{n}: balance {b:+.1f} dB, centre with pan {self._pan_to_centre(b):+.2f}" for n, b in suspects]
+        lines += [f"{n}: balance {b:+.1f} dB, centre with pan {self._pan_to_centre(b):+.2f} ({self._pan_evidence(n, b)})"
+                  for n, b in suspects]
         if not suspects:
             lines.append("none")
         return "\n".join(lines)
+
+    def _pan_evidence(self, stem: str, balance_db: float) -> str:
+        """Whether a pan suspect can be fixed without a client note (D79).
+
+        Mono parts are sometimes panned on purpose: on one test song the toms and an acoustic
+        guitar are mono, off centre and twinless, and the agent "fixed" them on two healthy mixes.
+        So the signature alone isn't enough. It counts as a fault without a note when the stem is
+        one that belongs in the centre (bass, kick, snare, lead vocal), or when the whole MIX leans
+        the stem's way: a finished mix balances out (dev mixes within 0.13 dB), and a mistake tips it."""
+        lean = self._mix_metrics()["balance_db"]
+        if is_centre_stem(stem):
+            return "centre stem: fix it"
+        if abs(lean) > MIX_LEAN_DB and math.copysign(1, lean) == math.copysign(1, balance_db):
+            return f"the MIX leans this way ({lean:+.1f} dB): fix it"
+        return "may be deliberate: only with a lopsided note"
 
     @staticmethod
     def _pan_to_centre(balance_db: float) -> float:
@@ -248,7 +273,7 @@ class MixSession:
         polarity tasks on full-v2 while passing the ones with a note (D74). This runs them all."""
         metrics = self._stem_metrics()
         names = self.engine.stem_names
-        lines = ["TRIAGE (act on clipping, polarity and pan without a note; level, mud and resonance need a matching note or clear evidence, see the skill)"]
+        lines = ["TRIAGE (act on clipping, polarity, and pans marked 'fix it', without a note; the rest need a matching note or clear evidence, see the skill)"]
         clips = sorted(((metrics[n]["clips_per_min"], n) for n in names), reverse=True)
         typical = float(np.median([c for c, _ in clips])) if clips else 0.0
         hot = [f"{n} {c:.0f}/min" for c, n in clips[:3] if c >= max(10.0, 10 * typical)]
@@ -265,7 +290,8 @@ class MixSession:
             lines.append("polarity: fewer than 2 drum stems, nothing to compare")
         pans = self._pan_suspects(names)
         lines.append("pan (mono, off centre, no twin): " + (", ".join(
-            f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f}" for n, b in pans) if pans else "none"))
+            f"{n} {b:+.1f} dB -> pan {self._pan_to_centre(b):+.2f} ({self._pan_evidence(n, b)})" for n, b in pans)
+            if pans else "none"))
         lines.append(f"level (_l/_r twins more than {TWIN_GAP_LU:.0f} LU apart): " + self._twin_gaps(metrics))
         mud = self._scan_lowmid(names).splitlines()[1:3]
         lines.append("mud suspects (only with a muddy/boxy note): " + " | ".join(mud))
