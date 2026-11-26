@@ -140,15 +140,17 @@ def test_scan_peaks_puts_the_resonant_stem_first():
 
 
 def test_scan_lowmid_ranks_the_muddy_stem_and_suggests_a_cut():
+    """D73: ranked by the stem's part in the mix's low-mids; the cut sits on its broad bump."""
     from zosimix import audio, targets
     clean = targets.shape(audio.to_stereo(_stems()["vox_lead"]), SR)          # "typical" = the clean vocal
     target = {"families": {"vocals": {"n": 12, **{b: [v, 1.5] for b, v in clean.items()}}}}
     s = session_with(faults.Fault("mud", "vox_lead", 2, {"freq_hz": 300.0, "gain_db": 9.0, "q": 1.0}), target)
     out = s.scan("lowmid")
     first = out.splitlines()[1]
-    assert first.startswith("vox_lead: +") and "cut of about" in first
-    cut = float(first.split("cut of about ")[1].split(" dB")[0])
-    assert 3.0 < cut <= 12.0
+    assert first.startswith("vox_lead: ") and "; cut " in first
+    cut = float(first.split("; cut ")[1].split(" dB")[0])
+    centre = float(first.split(" dB at ")[-1].split(" Hz")[0])
+    assert 200 <= centre <= 420 and 3.0 < cut <= 12.0
 
 
 def test_scan_rejects_unknown_measures_and_families():

@@ -124,6 +124,28 @@ def share_to_vs_rest_db(share_db: float) -> float:
     return float(10.0 * np.log10(share / max(1.0 - share, 1e-12)))
 
 
+def broad_bump_db(freqs: np.ndarray, power_db: np.ndarray) -> float:
+    """How far a spectrum's 200-400 Hz region sits above the straight line (in log frequency)
+    through its 100-150 Hz and 600-900 Hz levels: a broad low-mid bump measured against the
+    stem's own neighbourhood, not against other songs. A mud boost raises it by about half its
+    gain, so a cut of about twice this repairs it (D73, measured on the development songs)."""
+    def density(lo: float, hi: float) -> float:
+        sel = (freqs >= lo) & (freqs < hi)
+        return float(10.0 * np.log10(np.mean(10.0 ** (power_db[sel] / 10.0)) + 1e-20))
+    low, mid, high = density(100, 150), density(200, 400), density(600, 900)
+    x = np.log2([122.0, 283.0, 735.0])
+    return mid - (low + (high - low) * (x[1] - x[0]) / (x[2] - x[0]))
+
+
+def bump_centre_hz(freqs: np.ndarray, power_db: np.ndarray) -> float:
+    """Where a broad low-mid bump peaks (180-450 Hz): the maximum of the 1-octave-smoothed spectrum
+    minus the 3-octave-smoothed one. Within about a quarter octave of an injected boost's centre
+    on the development songs (D73)."""
+    diff = smooth_db(freqs, power_db, 1.0) - smooth_db(freqs, power_db, 1 / 3)
+    sel = (freqs >= 180) & (freqs <= 450)
+    return float(freqs[sel][np.argmax(diff[sel])])
+
+
 # ---------------------------------------------------------------- level, stereo, clipping
 
 def loudness_lufs(x: np.ndarray, sr: int) -> float:

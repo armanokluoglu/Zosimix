@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zosimix import analysis, audio, eq, targets
+from zosimix import analysis, audio
 from zosimix.engines.base import MixEngine
 from zosimix.mixstate import MAX_EQ_BANDS, EqBand, MixState
 from zosimix.songs import family_of
@@ -34,8 +34,7 @@ VERDICTS = ("fixed", "unfixable", "no_fault")
 TOKEN_BUDGETS = {"overview": 4000, "spectrum": 900, "compare": 900, "phase": 900,
                  "tonal_balance": 1200, "scan": 1400, "commit_changes": 600, "get_mix_state": 2400}
 SCAN_LINES = 14                  # stems listed by scan; the rest are summarised in one line
-MUD_CUT_HZ = 300.0               # where scan's suggested low-mid cut sits: the middle of the usual range
-MUD_CUT_MAX_DB = 12.0
+MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
 
 BAND_LABELS = "sub low lmid mid hmid pres bril air"
 
@@ -201,69 +200,63 @@ class MixSession:
         return {n: self._stem_cache[keys[n]] for n in names}
 
     def _scan_peaks(self, names: list[str]) -> str:
+        """Ranked by how far each stem's top bump stands above its own next bump. On the dev songs
+        that put an injected resonance first within its family 75% of the time, against 42% for
+        ranking by raw height: instruments with many natural bumps stop crowding the top (D73)."""
         peaks = self._peaks(names)
-        ranked = sorted((n for n in names if peaks[n]), key=lambda n: -peaks[n][0].excess_db)
-        lines = [("strongest persistent bump per stem, 300-8000 Hz: freq, height above its surroundings, Q,"
-                 " and the stem's next bump. The height understates an EQ boost by about half.")]
-        for n in ranked[:SCAN_LINES]:
+
+        def lead(n: str) -> float:
             p = peaks[n]
-            nxt = f"next +{p[1].excess_db:.1f}" if len(p) > 1 else "no other bump"
-            lines.append(f"{n}: {p[0].freq_hz:.0f} Hz +{p[0].excess_db:.1f} dB Q~{p[0].q:.0f} ({nxt})")
+            return p[0].excess_db - (p[1].excess_db if len(p) > 1 else 0.0)
+
+        ranked = sorted((n for n in names if peaks[n]), key=lambda n: -lead(n))
+        lines = [("strongest persistent bump per stem, 300-8000 Hz, ranked by how far it stands above the"
+                  " stem's next bump: freq, height above its surroundings, Q, lead over the next bump."
+                  " The height understates an EQ boost by about half.")]
+        for n in ranked[:SCAN_LINES]:
+            p = peaks[n][0]
+            lines.append(f"{n}: {p.freq_hz:.0f} Hz +{p.excess_db:.1f} dB Q~{p.q:.0f} (leads by {lead(n):.1f})")
         rest = len(ranked) - SCAN_LINES + len(names) - len(ranked)
         if rest > 0:
             lines.append(f"({rest} more stems with smaller or no bumps)")
         return "\n".join(lines)
 
     def _scan_lowmid(self, names: list[str]) -> str:
-        if not self.target:
-            return "no tonal target available for this task"
+        """Ranked by each stem's part in the MIX's low-mids, weighted by how far above typical it is.
+        A muddy mix gets its mud from a stem that fills the mix's low-mids, so the stem's share of
+        that energy matters as much as its own shape. On the dev songs this put injected mud first
+        in 24 of 24 cases, against 21% for the stem's shape alone (D73). Stems without a family
+        target are weighted by their broad low-mid bump instead."""
         metrics = self._stem_metrics()
-        rows, no_target = [], []
+        energy = {n: 10.0 ** (analysis.band_levels(metrics[n]["freqs"], metrics[n]["power_db"])["lowmid"] / 10.0)
+                  for n in self.engine.stem_names}
+        total = sum(energy.values()) or 1.0
+        rows = []
         for n in names:
-            ref = self.target["families"].get(family_of(n))
-            if not ref:
-                no_target.append(n)
-                continue
-            mean, spread = ref["lowmid"]
-            typical = analysis.share_to_vs_rest_db(mean)
-            excess = analysis.share_to_vs_rest_db(metrics[n]["shape"]["lowmid"]) - typical
-            # Divided by the family's spread as measured (share dB), the version that ranked
-            # injected mud best on the development songs (D72).
-            rows.append((excess / spread, excess, n, typical))
+            freqs, power_db = metrics[n]["freqs"], metrics[n]["power_db"]
+            share = energy[n] / total
+            bump = analysis.broad_bump_db(freqs, power_db)
+            ref = (self.target or {}).get("families", {}).get(family_of(n))
+            if ref:
+                mean, spread = ref["lowmid"]
+                z = (analysis.share_to_vs_rest_db(metrics[n]["shape"]["lowmid"])
+                     - analysis.share_to_vs_rest_db(mean)) / spread
+                score, z_text = share * z, f"z {z:+.1f}"
+            else:
+                score, z_text = share * bump / 2.0, "z n/a"
+            rows.append((score, n, share, z_text, bump, analysis.bump_centre_hz(freqs, power_db)))
         rows.sort(reverse=True)
-        lines = [("low-mid (150-400 Hz) against the rest of each stem, vs its family's typical value:"
-                 " excess dB (z)")]
-        rendered = self.engine.render_stems()
-        for i, (z, excess, n, typical) in enumerate(rows[:SCAN_LINES]):
-            line = f"{n}: {excess:+.1f} dB (z {z:+.1f})"
-            if i < 3 and excess > 1.0:
-                cut = self._cut_to_typical(rendered[n], typical)
-                line += (f"; a {MUD_CUT_HZ:.0f} Hz Q1 cut of about {cut:.1f} dB brings it to typical" if cut is not None
-                         else f"; even a {MUD_CUT_MAX_DB:.0f} dB cut at {MUD_CUT_HZ:.0f} Hz doesn't reach typical")
+        lines = [("low-mid (150-400 Hz) suspects: share of the MIX's low-mid energy, z of the stem's low-mid"
+                  " against its family's typical shape, its broad low-mid bump, and for the top three the"
+                  " cut that would undo that bump")]
+        for i, (_score, n, share, z_text, bump, centre) in enumerate(rows[:SCAN_LINES]):
+            line = f"{n}: {share:.0%} of mix, {z_text}, bump {bump:+.1f} dB at {centre:.0f} Hz"
+            if i < 3 and bump > 0.5:
+                line += f"; cut {min(MUD_CUT_MAX_DB, 2 * bump):.1f} dB at {centre:.0f} Hz, Q 1"
             lines.append(line)
         if len(rows) > SCAN_LINES:
             lines.append(f"({len(rows) - SCAN_LINES} more stems, lower)")
-        if no_target:
-            lines.append(f"no family target: {', '.join(no_target[:6])}" + (" ..." if len(no_target) > 6 else ""))
         return "\n".join(lines)
-
-    def _cut_to_typical(self, x: np.ndarray, typical_vs_rest: float) -> float | None:
-        """The cut at MUD_CUT_HZ (Q 1) that brings a stem's low-mid back to its family's typical
-        value, to 0.25 dB. On the development songs, a cut sized this way removed 70% or more of
-        an injected mud boost in about half the cases, given the right stem (D72)."""
-        sr = self.engine.sample_rate
-
-        def lowmid_after(gain_db: float) -> float:
-            y = eq.apply(x, [("peaking", MUD_CUT_HZ, -gain_db, 1.0)], sr)
-            return analysis.share_to_vs_rest_db(targets.shape(y, sr)["lowmid"])
-
-        if lowmid_after(MUD_CUT_MAX_DB) > typical_vs_rest:
-            return None
-        lo, hi = 0.0, MUD_CUT_MAX_DB
-        while hi - lo > 0.25:
-            mid = (lo + hi) / 2
-            lo, hi = (mid, hi) if lowmid_after(mid) > typical_vs_rest else (lo, mid)
-        return round(hi, 1)
 
     # ------------------------------------------------------------ actions (pending until commit)
 
