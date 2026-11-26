@@ -205,22 +205,3 @@ def test_ablation_switches_add_and_remove_tools():
     assert {"triage", "scan"} <= full and "spectrogram" not in full
     assert not {"triage", "scan"} & names(triage_tools=False)
     assert "spectrogram" in names(spectrogram_tool=True)
-
-
-def test_centre_stems_are_recognised():
-    from zosimix.tools import is_centre_stem
-    for name in ("bass", "bass_bass_guitar", "drums_kick_drum", "drums_snare_2", "vox_lead", "vocals_lead_female_singer"):
-        assert is_centre_stem(name), name
-    for name in ("drums_toms", "guitar_acoustic_guitar_3", "vox_backing_verse", "keys_synth"):
-        assert not is_centre_stem(name), name
-
-
-def test_a_pan_suspect_needs_a_centre_stem_or_a_leaning_mix(monkeypatch):
-    """D79: mono parts are sometimes panned on purpose, so the signature alone isn't enough."""
-    s = session_with(None)
-    monkeypatch.setattr(s, "_mix_metrics", lambda: {"balance_db": 0.1})
-    assert s._pan_evidence("vox_lead", 6.0).startswith("centre stem")
-    assert s._pan_evidence("drums_toms", 6.0).startswith("may be deliberate")
-    monkeypatch.setattr(s, "_mix_metrics", lambda: {"balance_db": 0.8})
-    assert s._pan_evidence("drums_toms", 6.0).startswith("the MIX leans this way")
-    assert s._pan_evidence("drums_toms", -6.0).startswith("may be deliberate")      # leans the other way

@@ -578,3 +578,7 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - Three no-note pan faults on non-centre stems were no longer fixed.
 - *Finding:* audio alone can't tell a mono part panned on purpose from one panned by mistake, so neither rule separates them. Without a note this is a judgement call, which the benchmark scores as a fault because the generator only pans originally centred stems.
 - *Status:* D79 is in the code as of this entry. Whether to revert to D74's signature-only rule (20/30) is the owner's decision.
+
+**D80 — D79 reverted: back to the signature-only pan rule** · 2026-11-26 · accepted (owner: "revert it")
+- The centre-stem / leaning-mix gate (D79) scored 18/30 against 20/30 for D74's rule, and didn't stop the false alarms it was meant to stop. Its commit is reverted, so the pan check is the D74 rule again: a mono, off-centre, twinless stem is re-centred without a note.
+- The known cost stays: on songs with mono parts panned on purpose (the toms in one test song), the agent re-centres them. This is documented in `results/week3.md` as a judgement the stems alone can't settle.
