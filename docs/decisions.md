@@ -475,3 +475,25 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *Why flstudio-mcp scores low:* its agent can only read levels: one peak per track, with no left/right split, spectrum or phase. It named the right fault 0 times in 39 pan, polarity and clipping runs. It placed resonance cuts by guesswork (repair at most 0.05). It worked on a 6 dB gain fault (repair 0.93 in all 3 runs), and it left 10 of 12 healthy mixes alone.
 - *Mud stays at 0/45* for everyone after the redraw: agents now find the stem more often, but cut 4–9 dB against 8–12 dB boosts (D69 follow-up, checked: the grader's measure isn't the cause). Resonance moved from 0 to 4/12 for both Claude Code configs.
 - *Also weak for everyone:* the smallest gain (3 dB) and pan (0.3) faults, 0 of 36 runs.
+
+**D72 — Raising scores honestly: oracle check, dev set, `scan`, targeted rerun** · 2026-11-26 · accepted (owner: "do all of these but don't run a full run and do targeted runs instead, keep it fast")
+- *Method:* tune only on a development set, measure once on the test set. `full-v2` is the test set. The test-set measurement reran only the 17 tasks the changes target (harness, 3 repeats). The other 13 tasks keep their earlier results. Page: `results/harness-v2.md`.
+- *Oracle check (`zosimix.oracle`):* ranks the faulty stem on the measurement that fits each fault, with no agent runs. On full-v2 it puts the faulty stem first for clipping 4/4, polarity 5/5, pan 3/4 and mud 3/5, but resonance 0/4 and gain 0/4. So the polarity, pan and mud failures are about how the agent uses the tools. Gain without a reference is a real ceiling: even a 10 dB fault isn't singled out.
+- *Dev set:* AlbumDB songs 02 and 08 (owner approved the ~2 GB download), in `data/dev_songs`. They're kept apart from `data/songs` so the leave-one-out tonal targets on test tasks don't change. `find_song` searches both folders. `tasks/dev.json` holds 18 tasks, 3 per type; there are no polarity tasks, because these songs have no qualifying drum mics. The generator gained `--songs-root` and `--types`.
+- *Findings on dev songs (injected faults, no agent):*
+  - A resonance cut sized at the reported height passes 11%; twice the height passes 78%. The detector finds the right bump 94% of the time.
+  - A centre-excluded detector is worse (0% ranked first, against 17%), so it is not used.
+  - The best reference-free mud policy passes about 44% even given the right stem.
+  - Clean mixes balance within 0.13 dB even with stems panned on purpose.
+- *Changes:*
+  - **Tool:** `scan` ranks every stem on one measure in one call. `peaks` gives each stem's strongest bump. `lowmid` gives its low-mid excess against the rest of the stem, compared with the family's typical value, plus a suggested 300 Hz cut. It is listed in the MCP instructions.
+  - **Skill:** cut resonances by about twice the reported height; use `scan` for mud and resonance; look for pan faults only when the MIX leans (more than about 0.5 dB) or the client says the image is lopsided; treat mud as a fault only with a muddy note.
+  - **Reports:** a partial-credit average.
+- *Dev results (one repeat):* before 8/18 (partial 0.50); first version 6/18 (0.33), where the looser mud and pan rules cut a naturally heavy acoustic guitar and re-centred toms panned on purpose; final version 10/18 (0.56).
+- *Test result (targeted):*
+  - Resonance improved from 4/12 to 8/12.
+  - Two controls from one song (full-v2-019, -026) dropped from 6/6 to 0/6. Its clean guitar has a natural 8.5 dB bump at 732 Hz, which `scan peaks` surfaces and the agent cut.
+  - Whole set: 46/90 → 44/90 (partial credit 0.53 → 0.50).
+  - Reported as measured; the regression is not fixed on the test set.
+- *Opus 5.5* (harness before the changes, 12 test tasks, 1 repeat) passed 7/12 (partial 0.61), the same as Sonnet's 21/36 (0.62) on those tasks.
+- *Open, for the owner:* gating resonance on a harsh or ringy note, like mud, would very likely undo the regression. Since the regression was seen on the test set, a rerun after that fix has to be labelled as tuned on the test set, unless the fix is first validated on a dev song with a natural standout bump.
