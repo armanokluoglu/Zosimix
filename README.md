@@ -27,6 +27,7 @@ Every configuration runs the same model (Claude Sonnet 5.5) on the same 30 tasks
 A run **passes** only if it names the right fault on the right stem, removes at least 70% of the fault-specific error, and leaves every healthy stem unchanged. Clipping is the exception: baked-in clipping can't be repaired, so the right answer is to report it and change nothing. Partial credit counts a correct but incomplete repair at its repair score.
 
 - Comparing task by task, the harness beats flstudio-mcp on 15 tasks and loses on none (sign test p < 0.001). Against plain Claude Code it wins 10 tasks and loses 4 (p ≈ 0.18): ahead in every repeat, but not yet conclusive on 30 tasks. Details: [results/full-v2.md](results/full-v2.md).
+- **Do the graders agree with ears?** In a blind listening check, repairs that the grader passed couldn't be told apart from the original mix in 6 of 6 pairs. That's one listener, a sanity check rather than a study: [results/listening.md](results/listening.md).
 - flstudio-mcp is an FL Studio MCP built for producing: its agent can read levels but not spectra, stereo balance or phase, so most faults are invisible to it.
 - **Work in progress:** a revised harness passes 69% on a separate development set, up from 44%: a `triage` tool, mix-aware mud and resonance rankings, and a mistaken-pan check. It hasn't been measured on the test set yet. How it was tuned without touching the test set, and what didn't work: [results/harness-v2.md](results/harness-v2.md).
 
