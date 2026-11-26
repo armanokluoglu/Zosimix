@@ -1,12 +1,27 @@
 # Zosimix
 
-**An agent that repairs mixes it can't hear, and a benchmark that proves it.**
+**Zosimix turns Claude Code into a mix engineer that can't hear: a plugin with measurement tools, a diagnosis playbook and FL Studio integration, plus the evaluation harness and benchmark that prove it works.**
 
 <!-- The demo video goes here (DESIGN.md §6). -->
 
-![Pass rate on the full-v2 benchmark: Zosimix harness 51%, plain Claude Code 37%, flstudio-mcp 13%, overall and by fault type](results/chart.svg)
+![Pass rate on the full-v2 benchmark, in-scope tasks: Zosimix harness 57%, plain Claude Code 41%, flstudio-mcp 15%, overall and by fault type](results/chart.svg)
 
 Claude can't listen to audio. Zosimix gives it a way to "hear" a multitrack mix through measurement tools, lets it repair what it finds (offline or inside FL Studio), and grades every repair against a known answer. The test set is made of faults injected into professionally mixed multitrack recordings, so the correct diagnosis and the correct fix are always known.
+
+## What Zosimix is
+
+Zosimix has two layers, and neither one replaces Claude Code itself.
+
+- **A Claude Code plugin: the part you install.** Claude Code is the agent harness: it runs the model, the loop, the permissions and the conversation. Zosimix plugs in through Claude Code's own extension points:
+  - an MCP server with the measurement tools that act as ears, the mixing controls, and a commit-and-verify step;
+  - a skill with the diagnosis playbook;
+  - a `/zosimix:fix` command;
+  - an optional step that puts the fix into the FL Studio project you have open.
+
+  In other words, it's a domain toolkit that turns a general coding agent into a careful mix engineer.
+- **An evaluation harness and benchmark: the part that proves it works.** A task generator plants known faults in real multitracks, a runner launches Claude Code on each task in an isolated workspace, deterministic graders score the answers, integrity checks make sure the agent never sees the answers, and a held-out set of songs is kept away from all tuning.
+
+In the results, **"Zosimix harness"** means Claude Code with the plugin's tools and skill, the configuration under test. **"Plain Claude Code"** is the same agent without them, and **flstudio-mcp** is an existing FL Studio plugin for Claude.
 
 ## Results
 
@@ -36,7 +51,7 @@ A run **passes** only if it names the right fault on the right stem, removes at 
 - Comparing task by task, the harness beats flstudio-mcp on 15 tasks and loses on none (sign test p < 0.001). Against plain Claude Code it wins 10 tasks and loses 4 (p ≈ 0.18): ahead in every repeat, but not yet conclusive on 30 tasks. Details: [results/full-v2.md](results/full-v2.md).
 - **Do the graders agree with ears?** In a blind listening check, repairs that the grader passed couldn't be told apart from the original mix in 6 of 6 pairs. That's one listener, a sanity check rather than a study: [results/listening.md](results/listening.md).
 - flstudio-mcp is an FL Studio MCP built for producing: its agent can read levels but not spectra, stereo balance or phase, so most faults are invisible to it.
-- **Work in progress:** a revised harness passes 69% on a separate development set, up from 44%: a `triage` tool, mix-aware mud and resonance rankings, and a mistaken-pan check. It hasn't been measured on the test set yet. How it was tuned without touching the test set, and what didn't work: [results/harness-v2.md](results/harness-v2.md).
+- These full-v2 numbers are the harness **before** its tuning rounds. Those rounds added a `triage` tool, mix-aware mud and resonance rankings, a mistaken-pan check and the spectrogram picture. The revised harness is what the held-out result above measures. How it was tuned, and what didn't work: [results/harness-v2.md](results/harness-v2.md) and [results/week3.md](results/week3.md).
 
 ## Use it on your own mix
 
@@ -73,17 +88,19 @@ To connect FL, once:
 
 ## How it works
 
-**The harness** is an MCP server plus a diagnosis skill for Claude Code ([skills/zosimix-diagnosis](skills/zosimix-diagnosis/SKILL.md)). The agent never hears audio; it measures it:
+**The plugin's core** is an MCP server plus a diagnosis skill for Claude Code ([skills/zosimix-diagnosis](skills/zosimix-diagnosis/SKILL.md)). The agent never hears audio; it measures it:
 
 | Tool | What it tells the agent |
 |---|---|
 | `triage` | Every objective check at once: clipping, drum polarity, mistaken pans, twin levels, and the top mud and resonance suspects |
 | `overview` | Loudness, peak, dynamics, stereo balance and band shape of every stem and the mix |
 | `scan` | All stems ranked on one measure (audible resonances, low-mid excess, pan) |
+| `spectrogram` | A picture of one stem over the whole song, to confirm a resonance or mud suspect by eye |
 | `spectrum`, `compare`, `phase`, `tonal_balance` | A closer look: persistent bumps, masking, drum-mic polarity, shape against other professionally mixed songs |
 | `set_gain`, `set_pan`, `set_polarity`, `set_width`, `set_eq_band` | Changes, held as pending until committed |
 | `commit_changes` | Applies the changes, re-renders, and reports what measurably moved |
 | `submit_diagnosis` | The final answer: refused while changes are uncommitted |
+| `open_mix`, `apply_to_fl`, `revert_fl` | Plugin only: load your own exported stems, put the fix into the open FL project (dry run first), undo it |
 
 **The benchmark** injects one fault into one stem of a real multitrack: gain, pan, polarity, resonance, mud or clipping, or nothing at all as a control. Mud and resonance are sized by how much they change the mix, so they can actually be heard in it (D69). Tasks come from a seeded generator, and each task's brief carries at most a vague client note ("the mix feels muddy").
 
@@ -122,7 +139,7 @@ Runs use the Claude Code CLI with a Claude subscription login, never an API key.
 - [DESIGN.md](DESIGN.md): architecture, benchmark design, grading and plan
 - [docs/decisions.md](docs/decisions.md): every design decision, with the alternatives and the reasons (75+ entries)
 - [results/](results): every evaluation write-up
-- `src/zosimix/`: harness, engines, faults, graders, runner
+- `src/zosimix/`: the plugin's tools and MCP server (`tools.py`, `mcp_server.py`, `live.py`), the engines, and the evaluation harness (`faults.py`, `tasks.py`, `graders.py`, `runner.py`)
 - `fl_bridge/`: the script that runs inside FL Studio, and the template
 - `.claude-plugin/`, `commands/`, `plugin/`: the Claude Code plugin
 
