@@ -420,6 +420,9 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
         workers = 1
     print(f"run {run_id}: {len(specs)} tasks x {configs} x {repeats} repeat(s); {len(done)} already done, "
           f"{len(jobs)} to run with {workers} worker(s)")
+    # Each agent's measurement server gets its share of the cores; inherited by every agent
+    # process and the MCP server it starts.
+    os.environ["ZOSIMIX_MEASURE_THREADS"] = str(max(1, (os.cpu_count() or 1) // workers))
     stop = threading.Event()
     lock = threading.Lock()
 

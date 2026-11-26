@@ -1,5 +1,7 @@
 # Full set v2: harness vs plain Claude Code vs flstudio-mcp (Sonnet 5.5), 2026-11-26
 
+> Later: mud and resonance repairs were re-measured with a grader that doesn't flatten out (D73). Regraded, plain passes 33/90 and the harness 46/90; see [harness-v2.md](harness-v2.md).
+
 All 30 tasks of `full-v2` (D69), 3 repeats each, for three configurations:
 
 - **`zosimix`**: Claude Code with the Zosimix MCP server and the diagnosis skill.

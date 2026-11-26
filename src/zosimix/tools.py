@@ -33,6 +33,9 @@ VERDICTS = ("fixed", "unfixable", "no_fault")
 # Rough budgets in characters (about 4 characters per token). Enforced by tests.
 TOKEN_BUDGETS = {"overview": 4000, "spectrum": 900, "compare": 900, "phase": 900,
                  "tonal_balance": 1200, "scan": 1400, "commit_changes": 600, "get_mix_state": 2400}
+# Threads for measuring stems. The runner lowers it when several agents run at once, so
+# their measurement servers don't fight over the same cores (D73).
+MEASURE_THREADS = int(os.environ.get("ZOSIMIX_MEASURE_THREADS", min(8, os.cpu_count() or 1)))
 SCAN_LINES = 14                  # stems listed by scan; the rest are summarised in one line
 MUD_CUT_MAX_DB = 12.0            # the deepest low-mid cut scan suggests
 
@@ -82,7 +85,7 @@ class MixSession:
         rendered = self.engine.render_stems()
         keys = {name: (name, self._key(name)) for name in rendered}
         todo = [name for name in rendered if keys[name] not in self._stem_cache]
-        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
+        with ThreadPoolExecutor(max_workers=MEASURE_THREADS) as pool:
             for name, result in zip(todo, pool.map(lambda n: self._measure(n, rendered[n]), todo)):
                 self._stem_cache[keys[name]] = result
         return {name: self._stem_cache[keys[name]] for name in rendered}
@@ -193,7 +196,7 @@ class MixSession:
         sr = self.engine.sample_rate
         keys = {n: ("peaks", n, self._key(n)) for n in names}
         todo = [n for n in names if keys[n] not in self._stem_cache]
-        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
+        with ThreadPoolExecutor(max_workers=MEASURE_THREADS) as pool:
             found = pool.map(lambda n: analysis.persistent_peaks(rendered[n], sr, 300, 8000, limit=3), todo)
             for name, peaks in zip(todo, found):
                 self._stem_cache[keys[name]] = peaks
