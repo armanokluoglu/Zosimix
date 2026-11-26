@@ -29,7 +29,7 @@ import numpy as np
 from zosimix import analysis, audio, faults
 from zosimix.engines.offline import OfflineEngine
 from zosimix.mixstate import MixState
-from zosimix.songs import DATA_ROOT, family_of, list_songs
+from zosimix.songs import DATA_ROOT, family_of, find_song
 from zosimix.tasks import TaskSpec
 
 REPAIR_PASS = 0.7           # at least 70% of the fault-specific error removed
@@ -167,7 +167,7 @@ class _Task:
 
 
 def _load_task(spec: TaskSpec, songs_root) -> _Task:
-    song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
+    song = find_song(spec.song_id, songs_root)
     clean, sr, _ = song.load_clean_stems()
     fault = faults.Fault(**spec.fault)
     broken = dict(clean)

@@ -6,6 +6,7 @@ HTTP range requests, so `remotezip` can pull single files out of the zip.
 Usage:
     python -m zosimix.datasets.albumdb list
     python -m zosimix.datasets.albumdb fetch 01 10
+    python -m zosimix.datasets.albumdb fetch 02 08 --dest data/dev_songs    # the dev set's songs (D72)
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import argparse
 import json
 import re
 import shutil
+from pathlib import Path
 
 from remotezip import RemoteZip
 
@@ -45,14 +47,14 @@ def list_songs() -> dict[str, dict]:
     return dict(sorted(songs.items()))
 
 
-def fetch(numbers: list[str]) -> None:
+def fetch(numbers: list[str], dest: Path = DATA_ROOT) -> None:
     catalog = list_songs()
     with RemoteZip(STEMS_ZIP) as stems_zip, RemoteZip(MASTERS_ZIP) as masters_zip:
         master_names = {m.split("/")[-1].split(" - ")[0]: m for m in masters_zip.namelist() if m.endswith(".wav")}
         for number in numbers:
             song = catalog[number]
             song_id = f"albumdb-{number}-{_slug(song['title'])}"
-            folder = DATA_ROOT / song_id
+            folder = dest / song_id
             (folder / "stems").mkdir(parents=True, exist_ok=True)
             for member in song["stems"]:
                 target = folder / "stems" / member.split("/")[-1]
@@ -81,12 +83,13 @@ def main() -> None:
     sub.add_parser("list")
     f = sub.add_parser("fetch")
     f.add_argument("numbers", nargs="+", help='track numbers, e.g. "01 10"')
+    f.add_argument("--dest", type=Path, default=DATA_ROOT, help="songs folder (default: the benchmark's)")
     args = ap.parse_args()
     if args.cmd == "list":
         for number, song in list_songs().items():
             print(f"{number}  {song['title']:<40} {len(song['stems']):3d} stems  {song['bytes'] / 1e6:6.0f} MB")
     else:
-        fetch(args.numbers)
+        fetch(args.numbers, args.dest)
 
 
 if __name__ == "__main__":

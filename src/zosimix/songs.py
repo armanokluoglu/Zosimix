@@ -22,6 +22,10 @@ import numpy as np
 from zosimix import audio
 
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "songs"
+# The development set's songs (D72), kept apart from DATA_ROOT on purpose: tonal targets are
+# learned from every song in DATA_ROOT, so adding songs there would change what the harness
+# shows on the test tasks.
+DEV_ROOT = DATA_ROOT.parent / "dev_songs"
 HEADROOM_DBFS = -1.0          # the clean mix of every song is scaled to peak here (D40)
 
 # Instrument families, used for stem selection and for vague client hints.
@@ -85,6 +89,15 @@ class Song:
 
 def list_songs(root: Path = DATA_ROOT) -> list[Song]:
     return [Song(p.name, p) for p in sorted(root.iterdir()) if (p / "stems").is_dir()] if root.exists() else []
+
+
+def find_song(song_id: str, root: Path = DATA_ROOT) -> Song:
+    """A song by id, from `root` or else from the development set's folder."""
+    for folder in (root, DEV_ROOT):
+        match = next((s for s in list_songs(folder) if s.song_id == song_id), None)
+        if match:
+            return match
+    raise ValueError(f"song {song_id!r} not found in {root} or {DEV_ROOT}")
 
 
 @dataclass

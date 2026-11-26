@@ -11,6 +11,7 @@ because a full copy of a song's stems is hundreds of MB.
 Usage:
     python -m zosimix.tasks generate --set smoke --n 6 --seed 7
     python -m zosimix.tasks generate --set full --n 30 --seed 42
+    python -m zosimix.tasks generate --set dev --n 21 --seed 72 --songs-root data/dev_songs \n        --types gain resonance mud pan clipping control
     python -m zosimix.tasks materialize full-001 --dest <folder outside the repo>
 """
 
@@ -25,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 from zosimix import audio, faults, targets
-from zosimix.songs import DATA_ROOT, Song, family_of, list_songs
+from zosimix.songs import DATA_ROOT, Song, family_of, find_song, list_songs
 
 TASKS_DIR = Path(__file__).resolve().parents[2] / "tasks"
 MAX_DUPLICATE_DRAWS = 20     # duplicates in a row before a fault type gives up its turn (D49)
@@ -72,7 +73,8 @@ class TaskSpec:
         return BASE_INSTRUCTION + (f"\n\nClient note: \"{self.hint}\"" if self.hint else "")
 
 
-def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSpec]:
+def generate(set_name: str, n: int, seed: int, songs: list[Song],
+             fault_types: list[str] | None = None) -> list[TaskSpec]:
     """Stratified sampling (D47):
       - cycle through the fault types so each appears about equally,
       - among the songs that can host that fault, prefer the least-used one,
@@ -80,16 +82,17 @@ def generate(set_name: str, n: int, seed: int, songs: list[Song]) -> list[TaskSp
       - never emit the same (song, fault, stem, severity, hint) twice. Polarity has only a
         few possible stems in the whole dataset, so without this it repeats itself,
       - if a type draws MAX_DUPLICATE_DRAWS duplicates in a row, it gives its turn to the next type."""
+    types = list(fault_types or faults.FAULT_TYPES)   # a subset when some type has no host (D72)
     rng = random.Random(seed)
     loaded = {s.song_id: s.load_clean_stems()[:2] for s in songs}
     eligible = {(sid, ft): ft == "control" or bool(faults.eligible_stems(ft, *loaded[sid]))
-                for sid in loaded for ft in faults.FAULT_TYPES}
-    order = faults.FAULT_TYPES[:]
+                for sid in loaded for ft in types}
+    order = types[:]
     rng.shuffle(order)
     specs: list[TaskSpec] = []
     seen: set[tuple] = set()
     uses = dict.fromkeys(loaded, 0)
-    per_type = {ft: rng.randrange(len(faults.SEVERITIES[ft])) for ft in faults.FAULT_TYPES}  # random start
+    per_type = {ft: rng.randrange(len(faults.SEVERITIES[ft])) for ft in types}  # random start
     turn = 0          # position in the fault-type rotation; moves on after each new task
     misses = 0        # duplicates drawn in a row for the current turn's type
     attempts = 0
@@ -181,7 +184,7 @@ def load(set_name: str) -> list[TaskSpec]:
 
 def faulty_stems(spec: TaskSpec, songs_root: Path = DATA_ROOT) -> tuple[dict[str, np.ndarray], int]:
     """The song's clean stems with the task's fault baked into one of them: what the agent gets."""
-    song = next(s for s in list_songs(songs_root) if s.song_id == spec.song_id)
+    song = find_song(spec.song_id, songs_root)
     stems, sr, _ = song.load_clean_stems()
     fault = faults.Fault(**spec.fault)
     if fault.stem:
@@ -218,6 +221,9 @@ def main() -> None:
     g.add_argument("--set", required=True)
     g.add_argument("--n", type=int, required=True)
     g.add_argument("--seed", type=int, required=True)
+    g.add_argument("--songs-root", type=Path, default=DATA_ROOT,
+                   help="where the songs are; the dev set uses data/dev_songs (D72)")
+    g.add_argument("--types", nargs="+", choices=faults.FAULT_TYPES, help="only these fault types")
     r = sub.add_parser("revise", help="redraw only the mud/resonance faults of an existing set (D69)")
     r.add_argument("--from", dest="source", required=True)
     r.add_argument("--set", required=True)
@@ -229,7 +235,7 @@ def main() -> None:
 
     if args.cmd in ("generate", "revise"):
         if args.cmd == "generate":
-            specs = generate(args.set, args.n, args.seed, list_songs())
+            specs = generate(args.set, args.n, args.seed, list_songs(args.songs_root), args.types)
             path = save(args.set, args.seed, specs)
         else:
             specs = revise_eq_faults(load(args.source), args.set, args.seed, list_songs())

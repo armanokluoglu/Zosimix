@@ -1,0 +1,270 @@
+{
+  "set": "dev",
+  "seed": 72,
+  "tasks": [
+    {
+      "task_id": "dev-001",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "dev-002",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_solo_r",
+        "severity": 2,
+        "params": {
+          "freq_hz": 214.8,
+          "gain_db": 11.7,
+          "q": 1.0,
+          "mix_rise_db": 3.03
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "dev-003",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "pan",
+        "stem": "guitar_electric_lead",
+        "severity": 2,
+        "params": {
+          "pan": 0.9
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-004",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "resonance",
+        "stem": "drums_snare",
+        "severity": 2,
+        "params": {
+          "freq_hz": 6244.6,
+          "gain_db": 17.4,
+          "q": 8.0,
+          "mix_rise_db": 6.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the drums sounds harsh or ringy."
+    },
+    {
+      "task_id": "dev-005",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_wah_r",
+        "severity": 2,
+        "params": {
+          "depth_db": 18.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something sounds distorted."
+    },
+    {
+      "task_id": "dev-006",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "gain",
+        "stem": "guitar_electric_heavy_l",
+        "severity": 1,
+        "params": {
+          "gain_db": -6.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-007",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-008",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "mud",
+        "stem": "drums_snare_2",
+        "severity": 0,
+        "params": {
+          "freq_hz": 394.6,
+          "gain_db": 10.2,
+          "q": 1.0,
+          "mix_rise_db": 1.01
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "dev-009",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "pan",
+        "stem": "bass_melody",
+        "severity": 0,
+        "params": {
+          "pan": -0.3
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The stereo image feels lopsided."
+    },
+    {
+      "task_id": "dev-010",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "resonance",
+        "stem": "vox_lead",
+        "severity": 0,
+        "params": {
+          "freq_hz": 4414.3,
+          "gain_db": 11.7,
+          "q": 8.0,
+          "mix_rise_db": 2.04
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the vocals sounds harsh or ringy."
+    },
+    {
+      "task_id": "dev-011",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "clipping",
+        "stem": "drums_snare2",
+        "severity": 0,
+        "params": {
+          "depth_db": 6.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-012",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "gain",
+        "stem": "drums_overheads",
+        "severity": 2,
+        "params": {
+          "gain_db": -10.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-013",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "control",
+        "stem": null,
+        "severity": 0,
+        "params": {}
+      },
+      "hint_level": "vague",
+      "hint": "Can you check this mix over before we send it out?"
+    },
+    {
+      "task_id": "dev-014",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "mud",
+        "stem": "guitar_electric_r",
+        "severity": 1,
+        "params": {
+          "freq_hz": 225.6,
+          "gain_db": 8.9,
+          "q": 1.0,
+          "mix_rise_db": 2.02
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The mix feels muddy and boxy."
+    },
+    {
+      "task_id": "dev-015",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "pan",
+        "stem": "bass",
+        "severity": 1,
+        "params": {
+          "pan": -0.6
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-016",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "resonance",
+        "stem": "drums_snare_1",
+        "severity": 1,
+        "params": {
+          "freq_hz": 5232.6,
+          "gain_db": 16.9,
+          "q": 8.0,
+          "mix_rise_db": 4.03
+        }
+      },
+      "hint_level": "vague",
+      "hint": "Something in the drums sounds harsh or ringy."
+    },
+    {
+      "task_id": "dev-017",
+      "song_id": "albumdb-08-an-evening-to-myself",
+      "fault": {
+        "type": "clipping",
+        "stem": "guitar_electric_heavy_l",
+        "severity": 1,
+        "params": {
+          "depth_db": 12.0
+        }
+      },
+      "hint_level": "none",
+      "hint": ""
+    },
+    {
+      "task_id": "dev-018",
+      "song_id": "albumdb-02-no-more-mr-nice-guy",
+      "fault": {
+        "type": "gain",
+        "stem": "keys_synth_r",
+        "severity": 0,
+        "params": {
+          "gain_db": 3.0
+        }
+      },
+      "hint_level": "vague",
+      "hint": "The keys feel too loud."
+    }
+  ]
+}
