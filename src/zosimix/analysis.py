@@ -115,6 +115,15 @@ def persistent_peaks(x: np.ndarray, sr: int, lo: float, hi: float, limit: int = 
     return peaks
 
 
+def share_to_vs_rest_db(share_db: float) -> float:
+    """A band's share of a signal's energy (dB) -> the band against everything else (dB).
+
+    A share can't rise above 0 dB, so on a stem whose low-mids already hold most of its energy
+    a big boost barely moves it. Band-against-rest has no such ceiling (D69, D72)."""
+    share = 10.0 ** (share_db / 10.0)
+    return float(10.0 * np.log10(share / max(1.0 - share, 1e-12)))
+
+
 # ---------------------------------------------------------------- level, stereo, clipping
 
 def loudness_lufs(x: np.ndarray, sr: int) -> float:

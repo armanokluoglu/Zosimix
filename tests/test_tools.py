@@ -111,6 +111,7 @@ def test_every_tool_answer_fits_its_budget(target):
         "compare": s.compare("bass", "drums_kick"),
         "phase": s.phase(),
         "tonal_balance": s.tonal_balance(),
+        "scan": s.scan("peaks") + s.scan("lowmid")[:0],
         "get_mix_state": s.get_mix_state(),
     }
     s.set_eq_band("vox_lead", 1, "peaking", 3000, -4, 2)
@@ -125,6 +126,34 @@ def test_mcp_server_exposes_all_tools_and_calls_them(target):
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
     assert {"overview", "spectrum", "phase", "commit_changes", "submit_diagnosis", "set_eq_band"} <= names
-    assert len(names) == 14
+    assert len(names) == 15
     result = asyncio.run(server.call_tool("overview", {}))
     assert "MIX" in str(result)
+
+
+def test_scan_peaks_puts_the_resonant_stem_first():
+    """D72: one call ranks every stem's strongest bump."""
+    s = session_with(faults.Fault("resonance", "vox_lead", 2, {"freq_hz": 2000.0, "gain_db": 12.0, "q": 8.0}))
+    out = s.scan("peaks")
+    assert out.splitlines()[1].startswith("vox_lead: ")
+    assert abs(float(out.splitlines()[1].split(": ")[1].split(" Hz")[0]) - 2000) < 100
+
+
+def test_scan_lowmid_ranks_the_muddy_stem_and_suggests_a_cut():
+    from zosimix import audio, targets
+    clean = targets.shape(audio.to_stereo(_stems()["vox_lead"]), SR)          # "typical" = the clean vocal
+    target = {"families": {"vocals": {"n": 12, **{b: [v, 1.5] for b, v in clean.items()}}}}
+    s = session_with(faults.Fault("mud", "vox_lead", 2, {"freq_hz": 300.0, "gain_db": 9.0, "q": 1.0}), target)
+    out = s.scan("lowmid")
+    first = out.splitlines()[1]
+    assert first.startswith("vox_lead: +") and "cut of about" in first
+    cut = float(first.split("cut of about ")[1].split(" dB")[0])
+    assert 3.0 < cut <= 12.0
+
+
+def test_scan_rejects_unknown_measures_and_families():
+    s = session_with(None)
+    with pytest.raises(ValueError):
+        s.scan("loudness")
+    with pytest.raises(ValueError, match="Families"):
+        s.scan("peaks", family="horns")

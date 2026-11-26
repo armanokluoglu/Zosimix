@@ -22,7 +22,7 @@ from zosimix.tools import MixSession
 
 INSTRUCTIONS = """\
 You are repairing a multitrack mix you cannot hear. These tools measure it for you.
-Workflow: overview -> investigate suspicious stems (spectrum, compare, phase, tonal_balance)
+Workflow: overview -> investigate suspicious stems (scan, spectrum, compare, phase, tonal_balance)
 -> make changes with set_* -> commit_changes (applies them and reports what moved)
 -> re-measure if needed -> submit_diagnosis once. Measurements always describe the
 committed mix. Make the smallest change that fixes the problem; leave healthy stems alone.
@@ -64,6 +64,15 @@ def build_server(session: MixSession) -> MCPServer:
         """Compare the mix's band shape (or one stem's, against its instrument family) with a
         target learned from other professionally mixed songs. Reports z-scores per band."""
         return session.tonal_balance(stem)
+
+    @server.tool()
+    def scan(measure: str, family: str | None = None) -> str:
+        """Rank every stem (or one instrument family's: vocals, drums, bass, guitars, keys, ...) on
+        one measure, to find the outlier in one call.
+        measure="peaks": each stem's strongest persistent spectral bump, 300-8000 Hz (resonances).
+        measure="lowmid": each stem's low-mid excess over its family's typical shape, with the
+        300 Hz cut that would bring the top suspects back to typical (mud)."""
+        return session.scan(measure, family)
 
     @server.tool()
     def get_mix_state() -> str:

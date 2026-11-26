@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zosimix import analysis, audio
+from zosimix import analysis, audio, eq, targets
 from zosimix.engines.base import MixEngine
 from zosimix.mixstate import MAX_EQ_BANDS, EqBand, MixState
 from zosimix.songs import family_of
@@ -32,7 +32,10 @@ VERDICTS = ("fixed", "unfixable", "no_fault")
 
 # Rough budgets in characters (about 4 characters per token). Enforced by tests.
 TOKEN_BUDGETS = {"overview": 4000, "spectrum": 900, "compare": 900, "phase": 900,
-                 "tonal_balance": 1200, "commit_changes": 600, "get_mix_state": 2400}
+                 "tonal_balance": 1200, "scan": 1400, "commit_changes": 600, "get_mix_state": 2400}
+SCAN_LINES = 14                  # stems listed by scan; the rest are summarised in one line
+MUD_CUT_HZ = 300.0               # where scan's suggested low-mid cut sits: the middle of the usual range
+MUD_CUT_MAX_DB = 12.0
 
 BAND_LABELS = "sub low lmid mid hmid pres bril air"
 
@@ -174,6 +177,93 @@ class MixSession:
             flag = "  <- high" if z > 2 else "  <- low" if z < -2 else ""
             lines.append(f"{name}: {shape[name]:.1f} / {mean:.1f} +/- {spread:.1f} -> {z:+.1f}{flag}")
         return "\n".join(lines)
+
+    def scan(self, measure: str, family: str | None = None) -> str:
+        """Every stem (or one family's) ranked on one measure, so an outlier shows in one call (D72).
+        Checking stems one at a time, agents tended to stop after two or three."""
+        if measure not in ("peaks", "lowmid"):
+            raise ValueError('measure must be "peaks" or "lowmid"')
+        names = [n for n in self.engine.stem_names if family is None or family_of(n) == family]
+        if not names:
+            families = sorted({family_of(n) for n in self.engine.stem_names})
+            raise ValueError(f"no stems in family {family!r}. Families: {', '.join(families)}")
+        return self._scan_peaks(names) if measure == "peaks" else self._scan_lowmid(names)
+
+    def _peaks(self, names: list[str]) -> dict[str, list[analysis.Peak]]:
+        rendered = self.engine.render_stems()
+        sr = self.engine.sample_rate
+        keys = {n: ("peaks", n, self._key(n)) for n in names}
+        todo = [n for n in names if keys[n] not in self._stem_cache]
+        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
+            found = pool.map(lambda n: analysis.persistent_peaks(rendered[n], sr, 300, 8000, limit=2), todo)
+            for name, peaks in zip(todo, found):
+                self._stem_cache[keys[name]] = peaks
+        return {n: self._stem_cache[keys[n]] for n in names}
+
+    def _scan_peaks(self, names: list[str]) -> str:
+        peaks = self._peaks(names)
+        ranked = sorted((n for n in names if peaks[n]), key=lambda n: -peaks[n][0].excess_db)
+        lines = [("strongest persistent bump per stem, 300-8000 Hz: freq, height above its surroundings, Q,"
+                 " and the stem's next bump. The height understates an EQ boost by about half.")]
+        for n in ranked[:SCAN_LINES]:
+            p = peaks[n]
+            nxt = f"next +{p[1].excess_db:.1f}" if len(p) > 1 else "no other bump"
+            lines.append(f"{n}: {p[0].freq_hz:.0f} Hz +{p[0].excess_db:.1f} dB Q~{p[0].q:.0f} ({nxt})")
+        rest = len(ranked) - SCAN_LINES + len(names) - len(ranked)
+        if rest > 0:
+            lines.append(f"({rest} more stems with smaller or no bumps)")
+        return "\n".join(lines)
+
+    def _scan_lowmid(self, names: list[str]) -> str:
+        if not self.target:
+            return "no tonal target available for this task"
+        metrics = self._stem_metrics()
+        rows, no_target = [], []
+        for n in names:
+            ref = self.target["families"].get(family_of(n))
+            if not ref:
+                no_target.append(n)
+                continue
+            mean, spread = ref["lowmid"]
+            typical = analysis.share_to_vs_rest_db(mean)
+            excess = analysis.share_to_vs_rest_db(metrics[n]["shape"]["lowmid"]) - typical
+            # Divided by the family's spread as measured (share dB), the version that ranked
+            # injected mud best on the development songs (D72).
+            rows.append((excess / spread, excess, n, typical))
+        rows.sort(reverse=True)
+        lines = [("low-mid (150-400 Hz) against the rest of each stem, vs its family's typical value:"
+                 " excess dB (z)")]
+        rendered = self.engine.render_stems()
+        for i, (z, excess, n, typical) in enumerate(rows[:SCAN_LINES]):
+            line = f"{n}: {excess:+.1f} dB (z {z:+.1f})"
+            if i < 3 and excess > 1.0:
+                cut = self._cut_to_typical(rendered[n], typical)
+                line += (f"; a {MUD_CUT_HZ:.0f} Hz Q1 cut of about {cut:.1f} dB brings it to typical" if cut is not None
+                         else f"; even a {MUD_CUT_MAX_DB:.0f} dB cut at {MUD_CUT_HZ:.0f} Hz doesn't reach typical")
+            lines.append(line)
+        if len(rows) > SCAN_LINES:
+            lines.append(f"({len(rows) - SCAN_LINES} more stems, lower)")
+        if no_target:
+            lines.append(f"no family target: {', '.join(no_target[:6])}" + (" ..." if len(no_target) > 6 else ""))
+        return "\n".join(lines)
+
+    def _cut_to_typical(self, x: np.ndarray, typical_vs_rest: float) -> float | None:
+        """The cut at MUD_CUT_HZ (Q 1) that brings a stem's low-mid back to its family's typical
+        value, to 0.25 dB. On the development songs, a cut sized this way removed 70% or more of
+        an injected mud boost in about half the cases, given the right stem (D72)."""
+        sr = self.engine.sample_rate
+
+        def lowmid_after(gain_db: float) -> float:
+            y = eq.apply(x, [("peaking", MUD_CUT_HZ, -gain_db, 1.0)], sr)
+            return analysis.share_to_vs_rest_db(targets.shape(y, sr)["lowmid"])
+
+        if lowmid_after(MUD_CUT_MAX_DB) > typical_vs_rest:
+            return None
+        lo, hi = 0.0, MUD_CUT_MAX_DB
+        while hi - lo > 0.25:
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if lowmid_after(mid) > typical_vs_rest else (lo, mid)
+        return round(hi, 1)
 
     # ------------------------------------------------------------ actions (pending until commit)
 

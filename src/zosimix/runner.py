@@ -434,6 +434,24 @@ def run(set_name: str, configs: list[str], repeats: int, model: str, run_id: str
     return run_dir
 
 
+def partial_credit(rows: list[dict]) -> float:
+    """Average credit per run, between 0 and 1, so a half-done repair isn't scored like doing
+    nothing (D72). A passed run scores 1. A failed run on a fixable fault scores its repair
+    score (clamped to 0..1), but only if it named the fault correctly and left the other stems
+    alone. Any other failed run scores 0."""
+    credit = []
+    for r in rows:
+        g = r["grade"]
+        repair = (g.get("repair") or {}).get("score")
+        if g["pass"]:
+            credit.append(1.0)
+        elif repair is not None and g.get("detected") and (g.get("others_residual_db") or 0) <= graders.UNTOUCHED_DB:
+            credit.append(min(1.0, max(0.0, repair)))
+        else:
+            credit.append(0.0)
+    return sum(credit) / len(credit) if credit else 0.0
+
+
 def report(run_id: str) -> str:
     rows = [json.loads(line) for line in (RUNS / run_id / "results.jsonl").read_text(encoding="utf-8").splitlines()]
     rows = [r for r in rows if r["status"] == "done"]
@@ -444,6 +462,7 @@ def report(run_id: str) -> str:
         detected = sum(bool(r["grade"].get("detected")) for r in rs)
         tokens = [r["usage"].get("output_tokens", 0) for r in rs]
         lines.append(f"\n[{config}] pass {passed}/{len(rs)}, detected {detected}/{len(rs)}, "
+                     f"partial credit {partial_credit(rs):.2f}, "
                      f"median {sorted(r['wall_s'] for r in rs)[len(rs) // 2]:.0f} s, "
                      f"{sum(r['turns'] or 0 for r in rs) / len(rs):.0f} turns avg, "
                      f"{sum(tokens) / len(rs):.0f} output tokens avg, "
