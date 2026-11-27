@@ -8,6 +8,8 @@
 
 Claude can't listen to audio. Zosimix gives it a way to "hear" a multitrack mix through measurement tools, lets it repair what it finds (offline or inside FL Studio), and grades every repair against a known answer. The test set is made of faults injected into professionally mixed multitrack recordings, so the correct diagnosis and the correct fix are always known.
 
+**The story behind it:** [Building an eval for an agent that can't hear](docs/blog/building-an-eval-for-an-agent-that-cant-hear.md) covers the benchmark bugs, the fixes that worked and the one that backfired, and the held-out result.
+
 ## What Zosimix is
 
 Zosimix has two layers, and neither one replaces Claude Code itself.
