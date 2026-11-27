@@ -67,7 +67,7 @@ Zosimix ships as a [Claude Code](https://claude.com/claude-code) plugin: the mea
 /plugin install zosimix --marketplace armanokluoglu/Zosimix
 ```
 
-The tools need Python 3.11+ and the project's packages. Install [uv](https://docs.astral.sh/uv/) and the plugin sets itself up on first use. Without uv, run this once in the plugin's folder: `python -m venv .venv`, then `.venv\Scripts\pip install -e ".[fl]"`.
+The tools need Python 3.11+ and the project's packages. Install [uv](https://docs.astral.sh/uv/) and the plugin sets itself up on first use. Without uv, run this once in the plugin's folder (Claude Code keeps it at `%USERPROFILE%\.claude\plugins\cache\zosimix\zosimix\<version>`): `python -m venv .venv`, then `.venv\Scripts\pip install -e ".[fl]"`. Repeat it after a plugin update, which gets a new folder. `claude mcp list` should then show `plugin:zosimix:zosimix ... Connected`.
 
 **Use it:**
 
