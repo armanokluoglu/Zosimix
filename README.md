@@ -25,9 +25,9 @@ In the results, **"Zosimix harness"** means Claude Code with the plugin's tools 
 
 ## Results
 
-**On six songs held out from all tuning**, the harness passes **83%** of tasks against **57%** for plain Claude Code. It wins 6 tasks and loses none (sign test p ≈ 0.03), using a third of the output tokens: [results/holdout.md](results/holdout.md).
+**On six songs held out from all tuning** (30 tasks, 3 repeats), the harness passes **81%** of tasks against **54%** for plain Claude Code (95% intervals 70–89% and 42–65%). Task by task it does better on 10 and worse on 2 (sign test p ≈ 0.04), using a third of the output tokens: [results/holdout.md](results/holdout.md).
 
-Mud and resonance are matters of taste, so the harness only treats them as faults when the client's note mentions them. Tasks with those faults and no note are reported but not counted in the pass rate, for every configuration (D83). Counting every task, the held-out rates are 63% and 43%.
+Mud and resonance are matters of taste, so the harness only treats them as faults when the client's note mentions them. Tasks with those faults and no note are reported but not counted in the pass rate, for every configuration (D83). Counting every task, the held-out rates are 62% and 41%.
 
 The table and chart below are the earlier full benchmark (full-v2), with three repeats and all three configurations.
 

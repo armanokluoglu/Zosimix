@@ -642,3 +642,12 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *FL apply edge case:* a fader at −∞ can't take a relative gain change. The plan now says so instead of trying to set −∞.
 - *flstudio-mcp can't run on the held-out set as built:* its songs have 29–35 stems and the FL template has 24 slots. Running it needs a larger template, built by hand in FL as in `fl_bridge/TEMPLATE.md`. The owner decides whether to.
 - *For the record:* repeats 2–3 of the held-out run would use these changes and D84's readable tool errors, which repeat 1 didn't have. The agent-visible numbers are the same; error messages are clearer.
+
+**D86 — Held-out, three repeats: harness 81%, plain Claude Code 54% (in scope)** · 2026-11-27 · accepted (owner: "Skip it on held-out", then run the full test)
+- *Run `holdout-1`, repeats 2–3 on commit 9fda067* (repeat 1 on cfabd46): 180 runs, 4 workers, no timeouts, no integrity flags.
+- *In scope:* harness 56/69 = 81% (Wilson 70–89%), plain 37/69 = 54% (42–65%); per repeat 19/19/18 against 13/12/12. Every task: 62% against 41%. Partial credit 0.84 against 0.55.
+- *Task by task (passes out of 3):* better on 10, worse on 2, tied on 11, sign test p ≈ 0.04.
+- *Cost:* harness 812 output tokens and 46 s median per task, plain 2,482 and 81 s.
+- *By fault, in scope:* clipping 15/15 vs 10/15, controls 15/15 vs 12/15, pan 14/15 vs 10/15, resonance with a note 6/9 vs 1/9, gain 6/15 vs 4/15.
+- *flstudio-mcp:* not run on the held-out set (29–35 stems against the template's 24 slots); the owner chose to skip it. Its full-v2 result stands.
+- The README headline and `results/holdout.md` now give the 3-repeat numbers.
