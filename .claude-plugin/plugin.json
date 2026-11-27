@@ -9,11 +9,20 @@
   },
   "repository": "https://github.com/armanokluoglu/Zosimix",
   "license": "MIT",
-  "keywords": ["mixing", "audio", "fl-studio", "mcp", "music-production"],
+  "keywords": [
+    "mixing",
+    "audio",
+    "fl-studio",
+    "mcp",
+    "music-production"
+  ],
   "mcpServers": {
     "zosimix": {
       "command": "python",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/plugin/run_server.py"]
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/plugin/run_server.py"
+      ]
     }
-  }
+  },
+  "icon": ".claude-plugin/icon.png"
 }

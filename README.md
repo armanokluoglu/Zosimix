@@ -141,6 +141,7 @@ Runs use the Claude Code CLI with a Claude subscription login, never an API key.
 - [DESIGN.md](DESIGN.md): architecture, benchmark design, grading and plan
 - [docs/decisions.md](docs/decisions.md): every design decision, with the alternatives and the reasons (75+ entries)
 - [results/](results): every evaluation write-up
+- [docs/blog](docs/blog/building-an-eval-for-an-agent-that-cant-hear.md): the blog post, *Building an eval for an agent that can't hear*
 - `src/zosimix/`: the plugin's tools and MCP server (`tools.py`, `mcp_server.py`, `live.py`), the engines, and the evaluation harness (`faults.py`, `tasks.py`, `graders.py`, `runner.py`)
 - `fl_bridge/`: the script that runs inside FL Studio, and the template
 - `.claude-plugin/`, `commands/`, `plugin/`: the Claude Code plugin

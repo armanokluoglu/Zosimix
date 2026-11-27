@@ -656,3 +656,24 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - `results/chart.svg`, at the top of the README, now shows the held-out set over 3 repeats: harness 81% against plain Claude Code 54% in scope, overall and by fault type. Only fault types the set scores are drawn: no polarity, and no mud, since every held-out mud task is out of scope.
 - The full-v2 chart, with all three configurations, moved to `results/chart-full-v2.svg` beside the full-v2 table. flstudio-mcp isn't in the held-out chart because it wasn't run on those songs; mixing song sets in one chart would mislead. The caption says so.
 - `python -m zosimix.chart` draws both. Each configuration keeps its colour in both charts, the layout adapts to the number of configurations and fault types, and the caption is a parameter.
+
+**D88 — Blog post, plugin icon, cleanup** · 2026-11-27 · accepted (owner: "do the blog post, add the icon, remove the unused stuff")
+- *Blog post:* `docs/blog/building-an-eval-for-an-agent-that-cant-hear.md`, about 2,100 words, in the owner's voice, stating that it was implemented by directing Claude Code. It tells the story through the decisions:
+  - the inaudible faults (D69);
+  - the dev set and the oracle check (D72);
+  - the wins and setbacks (D73, D74);
+  - the grader fix (D73);
+  - Opus no better than Sonnet;
+  - the unused spectrogram tool (D78);
+  - the pan fix that backfired (D79, D80);
+  - the held-out result (D86) with its scope rule (D83);
+  - the listening check (D77).
+  Every number was checked against the results pages, and the MoisesDB and AlbumDB citations are copied exactly from CITATIONS.md. Linked from the README.
+- *Icon:* `.claude-plugin/icon.png`, 1024 px: blue equaliser bars with one orange bar standing out (the fault the agent finds), in the results charts' colours. It is drawn by `plugin/make_icon.py` with the project's own PNG encoder and set in `plugin.json`. The validator's icon warning is gone; the one warning left is the dev CLAUDE.md at the repo root.
+- *Cleanup (outside git):*
+  - the `C:\zosimix\wt-ablations` worktree, with its `data` junction removed first and the real data checked untouched;
+  - the merged branches `ablations` and `panfix`;
+  - the listening session's 194 MB of clips (the key and the page kept);
+  - six leftover run workspaces in `C:\zosimix\ws` (about 6 GB);
+  - the local `.claude/launch.json`.
+  `C:\zosimix\fl\work` (368 MB of calibration and parity projects and renders) is kept as calibration evidence.
