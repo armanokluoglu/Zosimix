@@ -168,7 +168,7 @@ class MixSession:
         if len(group) < 2:
             return "need at least 2 related stems (no drum group found; pass stems explicitly)"
         rendered = self.engine.render_stems()
-        report = analysis.phase_report({s: rendered[s] for s in group}, self.engine.sample_rate)
+        report = analysis.phase_report({s: rendered[s] for s in group}, self.engine.sample_rate, fast=True)
         lines = ["stem: corr-with-rest lag_ms | group low end if this stem were flipped (dB)"]
         lines += [f"{s}: {r['corr']:+.2f} {r['lag_ms']:+.1f} | {r['flip_db']:+.1f}" for s, r in report.items()]
         lines.append("(clearly positive flip value = flipping would restore low end)")
@@ -270,7 +270,7 @@ class MixSession:
         drums = [n for n in names if family_of(n) == "drums"]
         if len(drums) >= 2:
             rendered = self.engine.render_stems()
-            report = analysis.phase_report({n: rendered[n] for n in drums}, self.engine.sample_rate)
+            report = analysis.phase_report({n: rendered[n] for n in drums}, self.engine.sample_rate, fast=True)
             flips = sorted(((r["flip_db"], n) for n, r in report.items()), reverse=True)
             strong = [f"{n} flip {f:+.1f} dB" for f, n in flips if f >= 1.0]
             lines.append("polarity (drum low end restored if flipped, >= +1 dB): " + (", ".join(strong) if strong else

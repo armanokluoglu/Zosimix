@@ -21,6 +21,7 @@ effects, so every change here is relative to what the insert holds now:
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -92,6 +93,10 @@ def plan(fl: Bridge, state: MixState) -> tuple[list[Change], list[str]]:
         label = f"insert {i} ({names[i]})"
         if abs(t.gain_db) > 1e-6:
             now = float(fl.call("get_volume_db", i)[0])
+            if not math.isfinite(now):          # fader all the way down: a relative change has no meaning
+                changes.append(Change(stem, i, "note", f"{label}: the fader is at -inf, so a {t.gain_db:+.1f} dB "
+                                      "change can't be applied; set it by hand"))
+                continue
             target = min(now + t.gain_db, controls.FADER_MAX_DB)
             short = (now + t.gain_db) - target
             detail = f"{label}: fader {now:+.1f} -> {target:+.1f} dB"

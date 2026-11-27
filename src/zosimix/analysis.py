@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyloudnorm
+import scipy.fft
 
 from zosimix import audio
 
@@ -191,13 +192,27 @@ def flat_top_runs_per_min(x: np.ndarray, sr: int, min_run: int = 4) -> float:
 
 # ---------------------------------------------------------------- relationships between stems
 
-def lowpass_mono(x: np.ndarray, sr: int, cutoff_hz: float = 500.0) -> np.ndarray:
-    spec = np.fft.rfft(x.mean(axis=1))
-    spec[np.fft.rfftfreq(len(x), 1.0 / sr) > cutoff_hz] = 0
-    return np.fft.irfft(spec, len(x))
+def lowpass_mono(x: np.ndarray, sr: int, cutoff_hz: float = 500.0, fast: bool = False) -> np.ndarray:
+    """Mono, brick-wall low-passed by zeroing the spectrum above `cutoff_hz`.
+
+    fast=True pads the FFT to a length with only small prime factors (D85). A song's length
+    can factor badly (282 s at 44.1 kHz = 2 x 307 x 20231), and then one FFT takes over a
+    second. Padding changes the result only in far decimals; the agent's tools use it, while
+    graders and the task generator keep the exact path so no grade moves."""
+    mono = x.mean(axis=1)
+    if not fast:
+        spec = np.fft.rfft(mono)
+        spec[np.fft.rfftfreq(len(x), 1.0 / sr) > cutoff_hz] = 0
+        return np.fft.irfft(spec, len(x))
+    n = len(mono)
+    m = scipy.fft.next_fast_len(n, real=True)
+    spec = scipy.fft.rfft(mono, m, workers=-1)
+    spec[np.fft.rfftfreq(m, 1.0 / sr) > cutoff_hz] = 0
+    return scipy.fft.irfft(spec, m, workers=-1)[:n]
 
 
-def phase_report(stems: dict[str, np.ndarray], sr: int, max_lag_ms: float = 10.0) -> dict[str, dict]:
+def phase_report(stems: dict[str, np.ndarray], sr: int, max_lag_ms: float = 10.0,
+                 fast: bool = False) -> dict[str, dict]:
     """For each stem in a group (e.g. the drum mics), against the sum of the others:
       corr      best low-end correlation within +-max_lag_ms (sign matters: negative = opposed)
       lag_ms    the lag where that happens (mic distance)
@@ -206,7 +221,7 @@ def phase_report(stems: dict[str, np.ndarray], sr: int, max_lag_ms: float = 10.0
     """
     names = list(stems)
     length = min(len(a) for a in stems.values())
-    low = {n: lowpass_mono(stems[n][:length], sr) for n in names}
+    low = {n: lowpass_mono(stems[n][:length], sr, fast=fast) for n in names}
     bus = sum(low.values())
     bus_rms = np.sqrt(np.mean(bus ** 2))
     # The lag search runs on every PHASE_DECIMATE-th sample: the signals are low-passed at 500 Hz,

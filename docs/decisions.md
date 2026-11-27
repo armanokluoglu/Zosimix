@@ -631,3 +631,14 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
   - Live check in FL: gain −3 dB, pan +0.30, polarity and a −6 dB EQ band applied exactly, and the revert restored all four.
 - *Tool errors now reach the agent:* this MCP SDK replaces an ordinary exception's message with "Error executing tool", hiding the reason. Every tool now turns a `ValueError` into a `ToolError`, whose text is sent ("unknown stem 'nope'. Stems: ..."; "q=99 is outside the allowed range"). This applies to benchmark runs too; earlier runs got the bare message.
 - *End-to-end check:* Claude Code with `--plugin-dir`, running `/zosimix:fix` on dev-014 written out as FL-style exports, with the note "the mix sounds muddy". It loaded 23 stems, found the right guitar, cut −7.7 dB at 194 Hz, explained what it left alone, and gave manual settings because FL was closed. Graded against the task: pass, repair 0.95, nothing else changed.
+
+**D85 — Pre-test check: a faster polarity check, an FL edge case, and the held-out size blocker** · 2026-11-27 · accepted (owner: "before running the full test (including flstudio-mcp), please check if there are any improvements that can be done")
+- *Ground rule:* the held-out results have been seen once (D82), so nothing here is tuned on them. The changes are speed and correctness only.
+- *Speed:* on the largest held-out song (35 stems, 282 s) the agent's first calls took about 40 s. Profiling found 20.6 s of that in `phase_report`'s brick-wall low-pass: a 12,421,834-sample FFT (2 × 307 × 20231) takes over a second per call.
+  - `lowpass_mono(fast=True)` pads to `scipy.fft.next_fast_len` and uses multithreaded FFTs. The agent's tools use it: `phase`, and triage's polarity line.
+  - Graders, the oracle and the task generator keep the exact path, so no grade changes. On a tuning polarity task the fast path gives identical flips and correlations to two decimals.
+  - `triage` on that song: 23.5 s → 6.4 s.
+- *Tried and dropped:* a vectorized loudness meter. It matched pyloudnorm exactly (0.0000 LU over 32 stems) but wasn't faster, since the time is in the K-weighting filters, not the loop. pyloudnorm stays.
+- *FL apply edge case:* a fader at −∞ can't take a relative gain change. The plan now says so instead of trying to set −∞.
+- *flstudio-mcp can't run on the held-out set as built:* its songs have 29–35 stems and the FL template has 24 slots. Running it needs a larger template, built by hand in FL as in `fl_bridge/TEMPLATE.md`. The owner decides whether to.
+- *For the record:* repeats 2–3 of the held-out run would use these changes and D84's readable tool errors, which repeat 1 didn't have. The agent-visible numbers are the same; error messages are clearer.
