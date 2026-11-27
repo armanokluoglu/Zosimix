@@ -1,11 +1,13 @@
-"""The README's results chart: pass rate per configuration, and per fault type (D76).
+"""The README's results charts: pass rate per configuration, and per fault type (D76, D87).
 
-Reads the graded runs that make up full-v2 (regraded grades where they exist, D73) and writes
-results/chart.svg: a hand-written SVG, so it needs no plotting library and follows the page's
-light or dark theme. Re-run it after a new evaluation run to update the README.
+Two charts, each from its own set of graded runs (regraded grades where they exist, D73):
+  results/chart.svg          the held-out set, 3 repeats: harness vs plain Claude Code
+  results/chart-full-v2.svg  the full-v2 benchmark, 3 repeats, all three configurations
+Hand-written SVG, so no plotting library, and the colours follow the page's light or dark theme.
+A configuration keeps its colour in both charts. Re-run after a new evaluation run.
 
 Usage:
-    python -m zosimix.chart
+    python -m zosimix.chart            # both charts
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from zosimix import graders, tasks
 REPO = Path(__file__).resolve().parents[2]
 RUNS = Path("C:/zosimix/runs")
 OUT = REPO / "results" / "chart.svg"
+OUT_FULL_V2 = REPO / "results" / "chart-full-v2.svg"
+HOLDOUT_RUN = "holdout-1"
 
 # Which runs make up full-v2 for each configuration (results/full-v2.md). full-1 holds the
 # 21 tasks full-v2 kept unchanged; full-2 the 9 redrawn mud and resonance tasks (D69).
@@ -55,6 +59,12 @@ def full_v2_rows(sources: dict = SOURCES) -> dict[str, list[dict]]:
                     rows.append(r)
         out[config] = rows
     return out
+
+
+def holdout_rows(run: str = HOLDOUT_RUN) -> dict[str, list[dict]]:
+    """The held-out run's graded rows per configuration (D86)."""
+    rows = _rows(run)
+    return {c: [r for r in rows if r["config"] == c] for c in LABELS if any(r["config"] == c for r in rows)}
 
 
 def summarise(rows: dict[str, list[dict]]) -> dict:
@@ -96,21 +106,26 @@ def _bar(x: float, y: float, w: float, h: float, cls: str, horizontal: bool) -> 
     return f'<path class="{cls}" d="{d}"/>'
 
 
-def svg(summary: dict, title: str) -> str:
+def svg(summary: dict, title: str, caption: list[str]) -> str:
     width, pad = 760, 24
-    configs = list(LABELS)
-    cls = {c: f"s{i + 1}" for i, c in enumerate(configs)}
-    parts = [(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} 580" role="img" '
+    configs = [c for c in LABELS if c in summary["overall"]]
+    cls = {c: f"s{i + 1}" for i, c in enumerate(LABELS)}       # a configuration keeps its colour in every chart
+    faults = [f for f in FAULT_ORDER if any(summary["by_fault"][c].get(f, (0, 0))[1] for c in configs)]
+    rows_h = len(configs) * 34
+    top = 60 + rows_h + 88
+    bottom = top + 250
+    height = bottom + 20 + 18 * len(caption) + 12
+    parts = [(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" '
              f'aria-label="{escape(title)}"><style>{STYLE}</style>'),
-             f'<rect class="surface" x="0" y="0" width="{width}" height="580" rx="8"/>',
+             f'<rect class="surface" x="0" y="0" width="{width}" height="{height}" rx="8"/>',
              f'<text class="t1" x="{pad}" y="36" font-size="18" font-weight="600">{escape(title)}</text>']
 
     # --- panel 1: overall pass rate, horizontal bars
     x0, x1, y = 200, width - 130, 60
     for frac in (0, 0.25, 0.5, 0.75, 1.0):
         gx = x0 + frac * (x1 - x0)
-        parts.append(f'<line class="grid" x1="{gx}" y1="{y}" x2="{gx}" y2="{y + 3 * 34}" stroke-width="1"/>')
-        parts.append(f'<text class="t2" x="{gx}" y="{y + 3 * 34 + 16}" font-size="11" text-anchor="middle">'
+        parts.append(f'<line class="grid" x1="{gx}" y1="{y}" x2="{gx}" y2="{y + rows_h}" stroke-width="1"/>')
+        parts.append(f'<text class="t2" x="{gx}" y="{y + rows_h + 16}" font-size="11" text-anchor="middle">'
                      f'{int(frac * 100)}%</text>')
     for i, c in enumerate(configs):
         k, n = summary["overall"][c]
@@ -123,10 +138,9 @@ def svg(summary: dict, title: str) -> str:
                      f'{k}/{n} runs</text>')
 
     # --- panel 2: pass rate per fault type, grouped vertical bars
-    top, bottom = 250, 500
     left, right = 64, width - pad
     parts.append(f'<text class="t1" x="{pad}" y="{top - 22}" font-size="14" font-weight="600">By fault type</text>')
-    for j, c in enumerate(configs):           # legend: swatch + name, always present for 3 series
+    for j, c in enumerate(configs):           # legend: swatch + name, always present for 2+ series
         lx = 200 + j * 170
         parts.append(f'<rect class="{cls[c]}" x="{lx}" y="{top - 33}" width="12" height="12" rx="2"/>')
         parts.append(f'<text class="t2" x="{lx + 18}" y="{top - 22}" font-size="12">{LABELS[c]}</text>')
@@ -135,10 +149,10 @@ def svg(summary: dict, title: str) -> str:
         parts.append(f'<line class="grid" x1="{left}" y1="{gy}" x2="{right}" y2="{gy}" stroke-width="1"/>')
         parts.append(f'<text class="t2" x="{left - 8}" y="{gy + 4}" font-size="11" text-anchor="end">'
                      f'{int(frac * 100)}%</text>')
-    group = (right - left) / len(FAULT_ORDER)
-    bar_w, gap = (group - 24) / 3, 2
-    for g, fault in enumerate(FAULT_ORDER):
-        gx = left + g * group + 12
+    group = (right - left) / len(faults)
+    bar_w, gap = min(40.0, (group - 24) / len(configs)), 2
+    for g, fault in enumerate(faults):
+        gx = left + g * group + (group - bar_w * len(configs)) / 2
         for j, c in enumerate(configs):
             k, n = summary["by_fault"][c].get(fault, (0, 0))
             h = (bottom - top) * (k / n if n else 0)
@@ -149,23 +163,30 @@ def svg(summary: dict, title: str) -> str:
                 parts.append(_bar(gx + j * bar_w + gap / 2, bottom - h, bar_w - gap, h, cls[c], horizontal=False))
         parts.append(f'<text class="t1" x="{left + g * group + group / 2}" y="{bottom + 18}" font-size="12" '
                      f'text-anchor="middle">{fault}</text>')
-    parts.append(f'<text class="t2" x="{pad}" y="{bottom + 44}" font-size="11">30 injected-fault tasks x 3 repeats,'
-                 ' Claude Sonnet 5.5. Mud and resonance count when the client mentions them.</text>')
-    parts.append(f'<text class="t2" x="{pad}" y="{bottom + 60}" font-size="11">Pass = right fault on the right stem,'
-                 ' repaired, and nothing else changed.</text>')
+    for n, line in enumerate(caption):
+        parts.append(f'<text class="t2" x="{pad}" y="{bottom + 44 + 16 * n}" font-size="11">{escape(line)}</text>')
     parts.append("</svg>")
     return "\n".join(p for p in parts if p)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", type=Path, default=OUT)
-    args = ap.parse_args()
-    summary = summarise(full_v2_rows())
-    args.out.write_text(svg(summary, "Pass rate on the full-v2 benchmark (in-scope tasks)"), encoding="utf-8")
-    for c, (k, n) in summary["overall"].items():
-        print(f"{LABELS[c]:20} {k}/{n} = {100 * k / n:.0f}%")
-    print(f"wrote {args.out}")
+    ap.parse_args()
+    pass_rule = "Pass = right fault on the right stem, repaired, and nothing else changed."
+    charts = [
+        (OUT, holdout_rows(), "Pass rate on six held-out songs (in-scope tasks)",
+         ["30 tasks on songs never used for tuning x 3 repeats, Claude Sonnet 5.5. Mud and resonance count when",
+          "the client mentions them (no held-out mud task had a note). flstudio-mcp wasn't run on these songs.",
+          pass_rule]),
+        (OUT_FULL_V2, full_v2_rows(), "Pass rate on the full-v2 benchmark (in-scope tasks)",
+         ["30 injected-fault tasks x 3 repeats, Claude Sonnet 5.5, before the harness's tuning rounds.",
+          "Mud and resonance count when the client mentions them.", pass_rule]),
+    ]
+    for path, rows, title, caption in charts:
+        summary = summarise(rows)
+        path.write_text(svg(summary, title, caption), encoding="utf-8")
+        print(f"{path.name}: " + ", ".join(f"{LABELS[c]} {k}/{n} = {100 * k / n:.0f}%"
+                                           for c, (k, n) in summary["overall"].items()))
 
 
 if __name__ == "__main__":

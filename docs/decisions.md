@@ -651,3 +651,8 @@ These are what FL 20.9.2 *reports* for each knob position. What the knobs do to 
 - *By fault, in scope:* clipping 15/15 vs 10/15, controls 15/15 vs 12/15, pan 14/15 vs 10/15, resonance with a note 6/9 vs 1/9, gain 6/15 vs 4/15.
 - *flstudio-mcp:* not run on the held-out set (29–35 stems against the template's 24 slots); the owner chose to skip it. Its full-v2 result stands.
 - The README headline and `results/holdout.md` now give the 3-repeat numbers.
+
+**D87 — The README chart shows the held-out result** · 2026-11-27 · accepted (owner: "update the chart in github to reflect the new results")
+- `results/chart.svg`, at the top of the README, now shows the held-out set over 3 repeats: harness 81% against plain Claude Code 54% in scope, overall and by fault type. Only fault types the set scores are drawn: no polarity, and no mud, since every held-out mud task is out of scope.
+- The full-v2 chart, with all three configurations, moved to `results/chart-full-v2.svg` beside the full-v2 table. flstudio-mcp isn't in the held-out chart because it wasn't run on those songs; mixing song sets in one chart would mislead. The caption says so.
+- `python -m zosimix.chart` draws both. Each configuration keeps its colour in both charts, the layout adapts to the number of configurations and fault types, and the caption is a parameter.

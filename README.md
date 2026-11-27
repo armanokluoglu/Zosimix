@@ -4,7 +4,7 @@
 
 <!-- The demo video goes here (DESIGN.md §6). -->
 
-![Pass rate on the full-v2 benchmark, in-scope tasks: Zosimix harness 57%, plain Claude Code 41%, flstudio-mcp 15%, overall and by fault type](results/chart.svg)
+![Pass rate on six held-out songs, in-scope tasks, 3 repeats: Zosimix harness 81%, plain Claude Code 54%, overall and by fault type](results/chart.svg)
 
 Claude can't listen to audio. Zosimix gives it a way to "hear" a multitrack mix through measurement tools, lets it repair what it finds (offline or inside FL Studio), and grades every repair against a known answer. The test set is made of faults injected into professionally mixed multitrack recordings, so the correct diagnosis and the correct fix are always known.
 
@@ -30,6 +30,8 @@ In the results, **"Zosimix harness"** means Claude Code with the plugin's tools 
 Mud and resonance are matters of taste, so the harness only treats them as faults when the client's note mentions them. Tasks with those faults and no note are reported but not counted in the pass rate, for every configuration (D83). Counting every task, the held-out rates are 62% and 41%.
 
 The table and chart below are the earlier full benchmark (full-v2), with three repeats and all three configurations.
+
+![Pass rate on the full-v2 benchmark, in-scope tasks: Zosimix harness 57%, plain Claude Code 41%, flstudio-mcp 15%, overall and by fault type](results/chart-full-v2.svg)
 
 Every configuration runs the same model (Claude Sonnet 5.5) on the same 30 tasks, 3 times each. The difference between them is the tools the model is given.
 
@@ -129,7 +131,7 @@ Audio is never committed. Fetch AlbumDB songs straight from Zenodo with `python 
 python -m zosimix.runner run --set full-v2 --config zosimix --config plain --repeats 3 --workers 4
 python -m zosimix.runner report --run <run id>
 python -m zosimix.oracle --set full-v2        # can the measurements single out each fault at all?
-python -m zosimix.chart                       # redraws results/chart.svg
+python -m zosimix.chart                       # redraws results/chart.svg and chart-full-v2.svg
 ```
 
 Runs use the Claude Code CLI with a Claude subscription login, never an API key. The FL Studio parts (FL engine, parity check, flstudio-mcp baseline) need FL Studio 20.9.2 on Windows, loopMIDI, and the template described in [fl_bridge/TEMPLATE.md](fl_bridge/TEMPLATE.md).
